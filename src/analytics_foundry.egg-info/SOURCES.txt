@@ -1,0 +1,9 @@
+README.md
+pyproject.toml
+src/analytics_foundry/__init__.py
+src/analytics_foundry.egg-info/PKG-INFO
+src/analytics_foundry.egg-info/SOURCES.txt
+src/analytics_foundry.egg-info/dependency_links.txt
+src/analytics_foundry.egg-info/requires.txt
+src/analytics_foundry.egg-info/top_level.txt
+tests/test_placeholder.py

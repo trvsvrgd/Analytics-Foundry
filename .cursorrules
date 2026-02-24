@@ -1,0 +1,34 @@
+# Analytics Foundry — Constitution
+
+## Principles
+
+- **Skinny Prompts, Fat Specs**  
+  Prompts stay short; authority lives in TECH_SPEC.md, PLAN.md, and code. When in doubt, read the spec. Do not re-derive requirements from chat.
+
+- **Material Disengagement**  
+  Not every line will be read. Code must be **correct-by-vibe**: clear naming, consistent patterns, and tests that guard behavior. If it’s in the codebase, it should be correct and test-backed.
+
+- **YOLO Error Loop**  
+  If an error is pasted: (1) fix it, (2) add or adjust a test so it doesn’t regress, (3) update PLAN.md if the fix changes scope or sequence. No “try again” without a concrete change.
+
+## Testing Mandate
+
+- Testing is **non-negotiable**. Every logic change requires a corresponding test.
+- **After every implementation**, run the test suite. Default command:
+  ```bash
+  pytest
+  ```
+- Prefer: unit tests for pure logic, contract/integration tests for API endpoints. See TECH_SPEC.md for testing standards.
+
+## Tech Stack Context
+
+- **Language:** Python. Modular, testable packages; avoid monoliths.
+- **Data:** SQL-heavy patterns. Medallion architecture (bronze → silver → gold). Schema and table naming: clear, consistent, Unity Catalog–friendly where applicable.
+- **Platform:** AWS/Databricks-ready. Design for cloud object storage and (where used) Unity Catalog.
+- **API:** REST. CORS enabled for frontend (e.g. sleeper-stream-scribe) on a different origin. Contract defined in TECH_SPEC.md.
+
+## Source of Truth
+
+- **TECH_SPEC.md** — High-level intent, requirements, API contract, testing standards, success criteria.
+- **PLAN.md** — Living roadmap: Completed vs Pending, each coding task paired with a Verification/Test task.
+- **.cursorrules** — This constitution; how we work, not what we build.

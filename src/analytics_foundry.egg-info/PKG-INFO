@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: analytics-foundry
+Version: 0.1.0
+Summary: Generalized backend data science workbench (medallion architecture, sleeper-stream-scribe compatible API)
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: pytest>=7.0
+Provides-Extra: api
+Requires-Dist: fastapi>=0.100; extra == "api"
+Requires-Dist: uvicorn[standard]>=0.22; extra == "api"
+
+# Analytics-Foundry
+Purpose: A multi-tenant data science platform designed for ingestion, transformation (Medallion architecture), and inference.  Primary Consumer: Sleeper Stream Scribe (via REST API).  Initial Initiative: NFL Analytics &amp; Waiver Optimization.
