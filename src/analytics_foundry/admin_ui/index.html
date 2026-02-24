@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Foundry Admin</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --surface: #1a2332;
+      --border: #2d3a4d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --success: #3fb950;
+      --danger: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1.5rem;
+      line-height: 1.5;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 1.5rem; color: var(--text); }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--muted); }
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      width: 100%;
+      max-width: 20rem;
+    }
+    button {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      margin-right: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    button:hover { opacity: 0.9; }
+    button.secondary {
+      background: var(--surface);
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    button.danger { background: var(--danger); color: #fff; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .status { font-size: 0.9rem; color: var(--muted); margin-top: 0.5rem; }
+    .status.ok { color: var(--success); }
+    .status.err { color: var(--danger); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 500; }
+    pre {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      overflow: auto;
+      font-size: 0.8rem;
+      max-height: 20rem;
+    }
+    .table-list { list-style: none; padding: 0; margin: 0; }
+    .table-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .table-list li:last-child { border-bottom: none; }
+    .table-list a { color: var(--accent); cursor: pointer; }
+    .table-list a:hover { text-decoration: underline; }
+    .badge { font-size: 0.75rem; color: var(--muted); }
+    .panel { margin-top: 0.75rem; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>Foundry Admin</h1>
+
+  <section>
+    <h2>League &amp; Ingest</h2>
+    <div class="row">
+      <input type="text" id="leagueId" placeholder="League ID" />
+      <button onclick="validateLeague()">Validate</button>
+      <button onclick="syncLeague()">Sync this league</button>
+      <button class="secondary" onclick="syncBroad()">Sync broad NFL</button>
+    </div>
+    <div id="leagueStatus" class="status"></div>
+  </section>
+
+  <section>
+    <h2>Medallion tables</h2>
+    <button class="secondary" onclick="loadTables()">Refresh</button>
+    <div id="tablesList" class="panel">Click Refresh to load.</div>
+    <div id="samplePanel" class="panel hidden">
+      <h3 id="sampleTitle"></h3>
+      <pre id="sampleData"></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Transformations</h2>
+    <button class="secondary" onclick="loadTransformations()">Refresh</button>
+    <div id="transformList" class="panel">Click Refresh to load.</div>
+    <div id="sqlPanel" class="panel hidden">
+      <h3 id="sqlTitle"></h3>
+      <pre id="sqlContent"></pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Job runs</h2>
+    <button class="secondary" onclick="loadRuns()">Refresh</button>
+    <div id="runsList" class="panel">No runs yet.</div>
+  </section>
+
+  <script>
+    const base = window.location.pathname.replace(/\/?$/, ''); // e.g. /admin
+
+    function setStatus(elId, text, ok) {
+      const el = document.getElementById(elId);
+      el.textContent = text;
+      el.className = 'status ' + (ok === true ? 'ok' : ok === false ? 'err' : '');
+    }
+
+    async function validateLeague() {
+      const id = document.getElementById('leagueId').value.trim();
+      if (!id) { setStatus('leagueStatus', 'Enter a league ID.', false); return; }
+      setStatus('leagueStatus', 'Validating…');
+      try {
+        const r = await fetch(base + '/league/validate?league_id=' + encodeURIComponent(id));
+        const d = await r.json();
+        if (d.valid) setStatus('leagueStatus', 'Valid: ' + (d.league_name || id), true);
+        else setStatus('leagueStatus', 'Invalid league.', false);
+      } catch (e) {
+        setStatus('leagueStatus', 'Error: ' + e.message, false);
+      }
+    }
+
+    async function syncLeague() {
+      const id = document.getElementById('leagueId').value.trim();
+      if (!id) { setStatus('leagueStatus', 'Enter a league ID.', false); return; }
+      setStatus('leagueStatus', 'Syncing…');
+      try {
+        const r = await fetch(base + '/ingest/league', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ league_id: id })
+        });
+        const d = await r.json();
+        if (r.ok) setStatus('leagueStatus', 'Synced: ' + id, true);
+        else setStatus('leagueStatus', d.detail || 'Failed', false);
+        loadRuns();
+      } catch (e) {
+        setStatus('leagueStatus', 'Error: ' + e.message, false);
+      }
+    }
+
+    async function syncBroad() {
+      setStatus('leagueStatus', 'Syncing broad NFL…');
+      try {
+        const r = await fetch(base + '/ingest/broad', { method: 'POST' });
+        const d = await r.json();
+        if (r.ok) setStatus('leagueStatus', 'Broad sync done.', true);
+        else setStatus('leagueStatus', d.detail || 'Failed', false);
+        loadRuns();
+      } catch (e) {
+        setStatus('leagueStatus', 'Error: ' + e.message, false);
+      }
+    }
+
+    async function loadTables() {
+      const el = document.getElementById('tablesList');
+      el.innerHTML = 'Loading…';
+      try {
+        const r = await fetch(base + '/tables');
+        const d = await r.json();
+        let html = '';
+        ['bronze', 'silver', 'gold'].forEach(layer => {
+          const list = d[layer] || [];
+          if (list.length === 0) return;
+          html += '<p class="badge">' + layer + '</p><ul class="table-list">';
+          list.forEach(t => {
+            const label = t.table != null ? t.source_id + ' / ' + t.table : t.name;
+            const count = t.row_count != null ? t.row_count : 'N/A';
+            const path = t.table != null
+              ? base + '/tables/' + layer + '/' + encodeURIComponent(t.source_id) + '/' + encodeURIComponent(t.table)
+              : base + '/tables/' + layer + '/' + encodeURIComponent(t.name);
+            html += '<li><a href="#" data-path="' + path + '">' + label + '</a> <span class="badge">' + count + ' rows</span></li>';
+          });
+          html += '</ul>';
+        });
+        el.innerHTML = html || 'No tables.';
+        el.querySelectorAll('a[data-path]').forEach(a => {
+          a.addEventListener('click', e => { e.preventDefault(); loadSample(a.dataset.path); });
+        });
+      } catch (e) {
+        el.innerHTML = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadSample(path) {
+      const titleEl = document.getElementById('sampleTitle');
+      const dataEl = document.getElementById('sampleData');
+      const panel = document.getElementById('samplePanel');
+      titleEl.textContent = path;
+      dataEl.textContent = 'Loading…';
+      panel.classList.remove('hidden');
+      try {
+        const r = await fetch(path);
+        const d = await r.json();
+        dataEl.textContent = JSON.stringify(d.rows || d, null, 2);
+      } catch (e) {
+        dataEl.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadTransformations() {
+      const el = document.getElementById('transformList');
+      el.innerHTML = 'Loading…';
+      try {
+        const r = await fetch(base + '/transformations');
+        const d = await r.json();
+        let html = '';
+        ['bronze', 'silver', 'gold'].forEach(layer => {
+          const names = d[layer] || [];
+          if (names.length === 0) return;
+          html += '<p class="badge">' + layer + '</p><ul class="table-list">';
+          names.forEach(name => {
+            const path = base + '/transformations/' + layer + '/' + encodeURIComponent(name);
+            html += '<li><a href="#" data-path="' + path + '">' + name + '</a></li>';
+          });
+          html += '</ul>';
+        });
+        el.innerHTML = html || 'None.';
+        el.querySelectorAll('a[data-path]').forEach(a => {
+          a.addEventListener('click', e => { e.preventDefault(); loadSql(a.dataset.path); });
+        });
+      } catch (e) {
+        el.innerHTML = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadSql(path) {
+      const titleEl = document.getElementById('sqlTitle');
+      const contentEl = document.getElementById('sqlContent');
+      const panel = document.getElementById('sqlPanel');
+      titleEl.textContent = path;
+      contentEl.textContent = 'Loading…';
+      panel.classList.remove('hidden');
+      try {
+        const r = await fetch(path);
+        const d = await r.json();
+        contentEl.textContent = d.sql || '';
+      } catch (e) {
+        contentEl.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadRuns() {
+      const el = document.getElementById('runsList');
+      try {
+        const r = await fetch(base + '/runs');
+        const list = await r.json();
+        if (!list || list.length === 0) {
+          el.innerHTML = 'No runs yet.';
+          return;
+        }
+        el.innerHTML = '<ul class="table-list">' + list.map(run => {
+          const ts = run.timestamp ? new Date(run.timestamp * 1000).toISOString() : '';
+          return '<li>' + run.kind + (run.league_id ? ' ' + run.league_id : '') + ' <span class="badge">' + ts + '</span></li>';
+        }).join('') + '</ul>';
+      } catch (e) {
+        el.innerHTML = 'Error: ' + e.message;
+      }
+    }
+
+    loadTables();
+    loadTransformations();
+    loadRuns();
+  </script>
+</body>
+</html>

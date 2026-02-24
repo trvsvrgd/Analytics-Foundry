@@ -10,6 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pytest>=7.0",
+    "fastapi>=0.100",
+    "httpx>=0.24",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +22,9 @@ api = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+analytics_foundry = ["admin_ui/*"]
 
 [tool.pytest.ini_options]
 addopts = ["-v", "--tb=short"]

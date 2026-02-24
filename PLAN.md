@@ -10,6 +10,10 @@
 | **1.1** Python package layout: `src/analytics_foundry/`, `tests/`, `pyproject.toml`, pytest config | `python -m pytest` runs; 2 tests pass (placeholder + package import). |
 | **1.2** Medallion layer modules: `bronze/`, `silver/`, `gold/` under `analytics_foundry` | Imports work; `tests/test_medallion_layout.py` (4 tests) pass; layout matches TECH_SPEC. |
 | **1.3** Pluggable adapter interface: `SourceAdapter` protocol, registry, `StubSourceAdapter` | `tests/test_adapters.py` (4 tests) pass; interface exists; stub registered/instantiated. |
+| **2.1** Contract test suite: full API contract (3 endpoints + optional league_id) | `tests/test_api_contract.py` (9 tests) pass; CORS present. |
+| **2.2** Second adapter: `MockFixtureAdapter` to prove pluggability | `tests/test_second_adapter.py` (3 tests) pass; runs through bronze. |
+| **2.3** SQL artifacts: bronze/silver/gold .sql + `sql_loader` | `tests/test_sql_artifacts.py` (7 tests) pass; medallion flow preserved. |
+| **2.4** Recommendation logic: waiver recommendations + endpoint | `gold/recommendations.py`, `tests/test_recommendations.py` (5 tests) pass. |
 
 ---
 
@@ -39,6 +43,8 @@
 | 2.3 | SQL-heavy refactor: move transforms to SQL where applicable (e.g. Delta/Spark SQL or raw SQL scripts) | Tests for SQL artifacts; medallion still bronze → silver → gold. |
 | 2.4 | Recommendation logic (waiver/add) implementation if not done in Phase 1 | Unit tests for logic; integration test for recommendation endpoint. |
 
+**Phase 2 completed:** 2.1 Contract tests (`tests/test_api_contract.py`); 2.2 MockFixtureAdapter (`adapters/mock_fixture.py`, `tests/test_second_adapter.py`); 2.3 SQL artifacts (`sql/`, `sql_loader.py`, `tests/test_sql_artifacts.py`); 2.4 Waiver recommendations (`gold/recommendations.py`, `tests/test_recommendations.py`). All 39 tests pass.
+
 ---
 
 ## Technical Debt & Vibe Inconsistencies (Audit)
@@ -51,5 +57,5 @@
 
 ## Next Step to Execute
 
-**Next:** **1.4 — NFL/Sleeper adapter.**  
-Implement NFL/Sleeper adapter: ingest league, players, rosters (and injuries if available) into bronze. Verification: unit or integration test that Sleeper data (or fixture) lands in bronze.
+**Next:** **1.5 — Silver layer.**  
+Silver layer: clean/conform NFL entities (players, leagues, rosters, injuries); schema and naming consistent. Verification: test silver output conforms to expected schema; dedup/cleaning logic tested.

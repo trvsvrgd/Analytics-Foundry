@@ -47,7 +47,7 @@ Implement **exactly** so the existing frontend works without changes.
 
 **Player object** (for `/players/available`): must include at least `id` (or `player_id`; frontend normalizes `player_id` → `id`), `name`, `position`, `team`, `status`, `age` (number or null), `trending` (number or null). All string fields strings; omit or null for missing values.
 
-**Recommendation endpoint(s):** To be added (e.g. waiver/add suggestions). Shape defined in this repo and documented for the frontend.
+**Recommendation endpoint(s):** GET `/recommendations/waiver` — optional query: `league_id`, `limit`. Response: `{ "recommendations": [ { "player_id", "name", "position", "team", "score" } ], "league_id": "..." }`. Score is numeric (e.g. trending); frontend can sort by score for waiver/add suggestions.
 
 **League identity:** The user's Sleeper league is provided by the frontend on each request (query param or body). No backend "insert" of league is required. If the frontend sends `league_id`, the backend uses it for that request only (stateless).
 
@@ -84,6 +84,38 @@ NFL/Sleeper adapter: ingest Sleeper/NFL data through bronze → silver → gold;
 - [ ] League validation, available players, and injury endpoints implemented, documented, and tested.
 - [ ] Recommendation endpoint(s) implemented or clearly stubbed and documented for future work.
 - [ ] `pytest` runs and passes; TECH_SPEC and PLAN updated as the system evolves.
+
+---
+
+## Foundry Admin UI
+
+- **Purpose:** Single place to interact with the foundry: league ID + ingest, medallion table browse/sample, view SQL transformations, and (stub) job runs.
+- **URL:** Served at `/admin` by the same FastAPI app (e.g. `http://localhost:8000/admin`).
+- **Tech:** Single HTML + vanilla JS that calls admin API endpoints under `/admin/*`.
+- **Security:** Admin routes are **unauthenticated** for local/dev. Document that auth (e.g. API key or OIDC) should be added before exposing the admin UI or API publicly.
+
+**Admin API (summary):**
+
+| Purpose | Endpoint / behavior |
+|--------|----------------------|
+| League ingest | POST `/admin/ingest/league` body `{ "league_id": "..." }` |
+| Broad ingest | POST `/admin/ingest/broad` |
+| List tables | GET `/admin/tables` — bronze from store; silver/gold as fixed list with row_count |
+| Sample table | GET `/admin/tables/{layer}/{source_or_name}[/{table}]` (bronze: source_id + table; gold: name) |
+| List transformations | GET `/admin/transformations` |
+| View transformation | GET `/admin/transformations/{layer}/{name}` |
+| Job runs (stub) | GET `/admin/runs` |
+| Validate league (UI) | GET `/admin/league/validate?league_id=...` |
+
+---
+
+## Local data storage
+
+The app is intended to run on a **local machine**. Bronze (raw) data is persisted under a configurable data directory so the UI (via the API) can reference it and data survives restarts.
+
+- **Env:** `FOUNDRY_DATA_DIR` — path to the data root (default `data`, relative to process cwd). If unset or empty, bronze is in-memory only (e.g. for tests).
+- **Layout:** `{FOUNDRY_DATA_DIR}/bronze/{source_id}/{table}.jsonl` — one JSON object per line (JSON Lines), append-only.
+- **Startup:** The FastAPI app calls `bronze_store.load_from_disk()` on startup so existing files are loaded into memory; `append_raw` continues to append to the same files.
 
 ---
 
