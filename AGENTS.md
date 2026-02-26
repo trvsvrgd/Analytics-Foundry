@@ -29,3 +29,4 @@ Admin UI at `http://localhost:8000/admin`. The API fetches real data from Sleepe
 - Scripts install to `~/.local/bin`; use `python3 -m pytest` / `python3 -m uvicorn ...` if `~/.local/bin` is not on PATH.
 - `/league/validate` calls the live Sleeper API — it will 500 for non-existent league IDs. Tests mock this out.
 - `FOUNDRY_DATA_DIR` defaults to `data` (relative to cwd). Bronze JSONL files persist there across restarts.
+- Default league ID `1261894762944802816` is used when API requests omit `league_id`. Override via `FOUNDRY_DEFAULT_LEAGUE_ID`.

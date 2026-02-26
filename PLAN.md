@@ -14,6 +14,7 @@
 | **2.2** Second adapter: `MockFixtureAdapter` to prove pluggability | `tests/test_second_adapter.py` (3 tests) pass; runs through bronze. |
 | **2.3** SQL artifacts: bronze/silver/gold .sql + `sql_loader` | `tests/test_sql_artifacts.py` (7 tests) pass; medallion flow preserved. |
 | **2.4** Recommendation logic: waiver recommendations + endpoint | `gold/recommendations.py`, `tests/test_recommendations.py` (5 tests) pass. |
+| **1.5** Silver layer: clean/conform NFL entities (players, leagues, rosters, injuries); schema and naming consistent | `silver/players.py`, `silver/league.py`, `silver/rosters.py`, `silver/injuries.py`; gold reads from silver; `tests/test_silver.py` (11 tests) pass. |
 
 ---
 
@@ -57,5 +58,4 @@
 
 ## Next Step to Execute
 
-**Next:** **1.5 — Silver layer.**  
-Silver layer: clean/conform NFL entities (players, leagues, rosters, injuries); schema and naming consistent. Verification: test silver output conforms to expected schema; dedup/cleaning logic tested.
+**Next:** **1.10 — Docs.** Phase 1.5 (silver) complete. Gold (1.6), REST API (1.7), player shape (1.8), recommendation stub (1.9) already in place. Update README/PLAN "current state" as needed.

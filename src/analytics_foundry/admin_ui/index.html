@@ -105,11 +105,19 @@
 
   <section>
     <h2>League &amp; Ingest</h2>
+    <p class="badge">Default league: <span id="defaultLeagueId">—</span></p>
     <div class="row">
-      <input type="text" id="leagueId" placeholder="League ID" />
+      <input type="text" id="leagueId" placeholder="League ID (single)" />
       <button onclick="validateLeague()">Validate</button>
       <button onclick="syncLeague()">Sync this league</button>
-      <button class="secondary" onclick="syncBroad()">Sync broad NFL</button>
+    </div>
+    <div style="margin-top: 0.75rem;">
+      <label for="leagueIds">League IDs (one per line or comma-separated):</label>
+      <textarea id="leagueIds" rows="3" placeholder="1261894762944802816&#10;or: id1, id2, id3" style="width: 100%; max-width: 30rem; margin-top: 0.25rem; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-family: inherit;"></textarea>
+      <div class="row" style="margin-top: 0.5rem;">
+        <button onclick="syncAllLeagues()">Sync all leagues</button>
+        <button class="secondary" onclick="syncBroad()">Sync broad NFL</button>
+      </div>
     </div>
     <div id="leagueStatus" class="status"></div>
   </section>
@@ -143,6 +151,19 @@
   <script>
     const base = window.location.pathname.replace(/\/?$/, ''); // e.g. /admin
 
+    async function loadConfig() {
+      try {
+        const r = await fetch(base + '/config');
+        const d = await r.json();
+        const def = d.default_league_id || '';
+        document.getElementById('defaultLeagueId').textContent = def || '—';
+        const single = document.getElementById('leagueId');
+        if (!single.value.trim()) single.placeholder = 'League ID (default: ' + (def || '—') + ')';
+        const multi = document.getElementById('leagueIds');
+        if (!multi.value.trim()) multi.value = def;
+      } catch (e) { document.getElementById('defaultLeagueId').textContent = '—'; }
+    }
+
     function setStatus(elId, text, ok) {
       const el = document.getElementById(elId);
       el.textContent = text;
@@ -150,7 +171,14 @@
     }
 
     async function validateLeague() {
-      const id = document.getElementById('leagueId').value.trim();
+      let id = document.getElementById('leagueId').value.trim();
+      if (!id) {
+        try {
+          const r = await fetch(base + '/config');
+          const d = await r.json();
+          id = d.default_league_id || '';
+        } catch (_) {}
+      }
       if (!id) { setStatus('leagueStatus', 'Enter a league ID.', false); return; }
       setStatus('leagueStatus', 'Validating…');
       try {
@@ -164,8 +192,15 @@
     }
 
     async function syncLeague() {
-      const id = document.getElementById('leagueId').value.trim();
-      if (!id) { setStatus('leagueStatus', 'Enter a league ID.', false); return; }
+      let id = document.getElementById('leagueId').value.trim();
+      if (!id) {
+        try {
+          const r = await fetch(base + '/config');
+          const d = await r.json();
+          id = d.default_league_id || '';
+        } catch (_) {}
+      }
+      if (!id) { setStatus('leagueStatus', 'Enter a league ID or use Sync all leagues below.', false); return; }
       setStatus('leagueStatus', 'Syncing…');
       try {
         const r = await fetch(base + '/ingest/league', {
@@ -175,6 +210,27 @@
         });
         const d = await r.json();
         if (r.ok) setStatus('leagueStatus', 'Synced: ' + id, true);
+        else setStatus('leagueStatus', d.detail || 'Failed', false);
+        loadRuns();
+      } catch (e) {
+        setStatus('leagueStatus', 'Error: ' + e.message, false);
+      }
+    }
+
+    async function syncAllLeagues() {
+      const raw = document.getElementById('leagueIds').value.trim();
+      if (!raw) { setStatus('leagueStatus', 'Enter one or more league IDs.', false); return; }
+      const ids = raw.replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
+      if (ids.length === 0) { setStatus('leagueStatus', 'Enter at least one league ID.', false); return; }
+      setStatus('leagueStatus', 'Syncing ' + ids.length + ' league(s)…');
+      try {
+        const r = await fetch(base + '/ingest/leagues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ league_ids: ids })
+        });
+        const d = await r.json();
+        if (r.ok) setStatus('leagueStatus', 'Synced: ' + ids.join(', '), true);
         else setStatus('leagueStatus', d.detail || 'Failed', false);
         loadRuns();
       } catch (e) {
@@ -301,6 +357,7 @@
       }
     }
 
+    loadConfig();
     loadTables();
     loadTransformations();
     loadRuns();

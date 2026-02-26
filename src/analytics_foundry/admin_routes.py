@@ -10,6 +10,11 @@ from pydantic import BaseModel
 
 from analytics_foundry.adapters import get_adapter
 from analytics_foundry.bronze import store as bronze_store
+from analytics_foundry.config import get_default_league_id
+from analytics_foundry.silver import injuries as silver_injuries
+from analytics_foundry.silver import league as silver_league
+from analytics_foundry.silver import players as silver_players
+from analytics_foundry.silver import rosters as silver_rosters
 from analytics_foundry.gold import injury as gold_injury
 from analytics_foundry.gold import league as gold_league
 from analytics_foundry.gold import players as gold_players
@@ -26,6 +31,11 @@ class IngestLeagueBody(BaseModel):
     league_id: str
 
 
+class IngestLeaguesBody(BaseModel):
+    """One or more league IDs (comma-separated string or list)."""
+    league_ids: str | list[str]
+
+
 def _record_run(kind: str, league_id: Optional[str] = None) -> None:
     _RUNS.insert(0, {
         "kind": kind,
@@ -36,12 +46,42 @@ def _record_run(kind: str, league_id: Optional[str] = None) -> None:
         _RUNS.pop()
 
 
+@router.get("/config")
+def admin_config() -> Dict[str, Any]:
+    """Return config values for the admin UI (e.g. default league ID)."""
+    return {"default_league_id": get_default_league_id()}
+
+
 @router.post("/ingest/league")
 def admin_ingest_league(body: IngestLeagueBody) -> Dict[str, Any]:
     """Trigger league-scoped ingest for the given league_id. Uses ensure_league_ingested."""
     gold_league.ensure_league_ingested(body.league_id)
     _record_run("league", body.league_id)
     return {"ok": True, "league_id": body.league_id}
+
+
+def _parse_league_ids(raw: str | list[str]) -> list[str]:
+    """Parse league_ids from string (comma/newline separated) or list."""
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    ids = []
+    for part in raw.replace("\n", ",").split(","):
+        pid = part.strip()
+        if pid:
+            ids.append(pid)
+    return ids
+
+
+@router.post("/ingest/leagues")
+def admin_ingest_leagues(body: IngestLeaguesBody) -> Dict[str, Any]:
+    """Trigger league-scoped ingest for one or more league IDs."""
+    ids = _parse_league_ids(body.league_ids)
+    if not ids:
+        raise HTTPException(status_code=400, detail="At least one league_id required")
+    for lid in ids:
+        gold_league.ensure_league_ingested(lid)
+        _record_run("league", lid)
+    return {"ok": True, "league_ids": ids}
 
 
 @router.post("/ingest/broad")
@@ -62,10 +102,15 @@ def admin_list_tables() -> Dict[str, Any]:
         {"layer": "bronze", "source_id": s, "table": t, "row_count": n}
         for s, t, n in bronze_store.list_tables()
     ]
-    silver_names = [f.replace(".sql", "") for f in list_sql_files("silver")]
+    silver_tables = [
+        ("players", lambda: len(silver_players.get_players())),
+        ("league", lambda: len(silver_league.get_leagues())),
+        ("rosters", lambda: len(silver_rosters.get_rosters())),
+        ("injuries", lambda: len(silver_injuries.get_injuries())),
+    ]
     silver = [
-        {"layer": "silver", "name": n, "row_count": None}
-        for n in silver_names
+        {"layer": "silver", "name": n, "row_count": fn()}
+        for n, fn in silver_tables
     ]
     gold_available = gold_players.get_available_players()
     gold_injury_list = gold_injury.get_injury_report()
@@ -91,7 +136,17 @@ def admin_sample_table_two_segments(
         rows = bronze_store.get_raw(source_or_name, table)[:limit]
         return {"layer": layer, "source_id": source_or_name, "table": table, "rows": rows, "limit": limit}
     if layer == "silver":
-        return {"layer": layer, "name": source_or_name, "rows": [], "limit": limit, "note": "Silver samples not implemented"}
+        if source_or_name == "players":
+            rows = silver_players.get_players()[:limit]
+        elif source_or_name == "league":
+            rows = silver_league.get_leagues()[:limit]
+        elif source_or_name == "rosters":
+            rows = silver_rosters.get_rosters()[:limit]
+        elif source_or_name == "injuries":
+            rows = silver_injuries.get_injuries()[:limit]
+        else:
+            raise HTTPException(status_code=404, detail=f"Unknown silver table: {source_or_name}")
+        return {"layer": layer, "name": source_or_name, "rows": rows, "limit": limit}
     if layer == "gold":
         if source_or_name == "available_players":
             rows = gold_players.get_available_players()[:limit]
