@@ -109,6 +109,15 @@ def test_injury_object_shape(client):
     assert all("player_id" in x and "status" in x for x in data)
 
 
+def test_players_available_uses_default_league_when_omitted(client):
+    """GET /players/available without league_id uses default league."""
+    with patch("analytics_foundry.api.get_default_league_id", return_value="1261894762944802816"), \
+         patch("analytics_foundry.gold.league.ensure_league_ingested") as mock_ensure:
+        resp = client.get("/players/available")
+    assert resp.status_code == 200
+    mock_ensure.assert_called_once_with("1261894762944802816")
+
+
 def test_cors_headers_present(client):
     """CORS headers present for cross-origin frontend."""
     resp = client.options("/players/available", headers={"Origin": "https://frontend.example.com"})

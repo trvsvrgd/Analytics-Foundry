@@ -89,6 +89,22 @@ def test_admin_tables_sample_gold_injury(client):
     assert data["name"] == "injury"
 
 
+def test_admin_tables_sample_silver(client):
+    """GET /admin/tables/silver/players returns sample from silver layer."""
+    bronze_store.append_raw("nfl_sleeper", "players", [
+        {"player_id": "p1", "display_name": "Alice", "position": "WR"},
+    ])
+    resp = client.get("/admin/tables/silver/players")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["layer"] == "silver"
+    assert data["name"] == "players"
+    assert "rows" in data
+    assert len(data["rows"]) >= 1
+    assert data["rows"][0]["player_id"] == "p1"
+    assert data["rows"][0]["name"] == "Alice"
+
+
 def test_admin_transform_list(client):
     """GET /admin/transformations returns layers with SQL file names."""
     resp = client.get("/admin/transformations")
@@ -124,6 +140,16 @@ def test_admin_runs_returns_list(client):
     assert isinstance(data, list)
 
 
+def test_admin_config(client):
+    """GET /admin/config returns default_league_id."""
+    resp = client.get("/admin/config")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "default_league_id" in data
+    assert isinstance(data["default_league_id"], str)
+    assert len(data["default_league_id"]) > 0
+
+
 def test_admin_ingest_league(client):
     """POST /admin/ingest/league calls ensure_league_ingested and records run."""
     resp = client.post("/admin/ingest/league", json={"league_id": "league_abc"})
@@ -133,6 +159,43 @@ def test_admin_ingest_league(client):
     assert len(runs) >= 1
     assert runs[0]["kind"] == "league"
     assert runs[0]["league_id"] == "league_abc"
+
+
+def test_admin_ingest_leagues_single(client):
+    """POST /admin/ingest/leagues with single ID works."""
+    resp = client.post("/admin/ingest/leagues", json={"league_ids": "L1"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["league_ids"] == ["L1"]
+    runs = client.get("/admin/runs").json()
+    assert runs[0]["league_id"] == "L1"
+
+
+def test_admin_ingest_leagues_multiple(client):
+    """POST /admin/ingest/leagues with multiple IDs syncs all."""
+    resp = client.post("/admin/ingest/leagues", json={"league_ids": "L1,L2,L3"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["ok"] is True
+    assert data["league_ids"] == ["L1", "L2", "L3"]
+    runs = client.get("/admin/runs").json()
+    league_runs = [r for r in runs if r["kind"] == "league"]
+    assert len(league_runs) >= 3
+
+
+def test_admin_ingest_leagues_list(client):
+    """POST /admin/ingest/leagues accepts league_ids as JSON array."""
+    resp = client.post("/admin/ingest/leagues", json={"league_ids": ["A", "B"]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["league_ids"] == ["A", "B"]
+
+
+def test_admin_ingest_leagues_empty_returns_400(client):
+    """POST /admin/ingest/leagues with empty league_ids returns 400."""
+    resp = client.post("/admin/ingest/leagues", json={"league_ids": ""})
+    assert resp.status_code == 400
 
 
 def test_admin_ingest_broad(client):

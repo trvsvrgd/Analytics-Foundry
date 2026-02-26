@@ -11,6 +11,7 @@ from analytics_foundry.admin_routes import router as admin_router
 from analytics_foundry.adapters import register_adapter
 from analytics_foundry.bronze import store as bronze_store
 from analytics_foundry.adapters.nfl_sleeper import NFLSleeperAdapter
+from analytics_foundry.config import get_default_league_id
 from analytics_foundry.gold import injury as gold_injury
 from analytics_foundry.gold import league as gold_league
 from analytics_foundry.gold import players as gold_players
@@ -42,10 +43,10 @@ class LeagueValidateBody(BaseModel):
 
 @app.get("/players/available")
 def players_available(league_id: Optional[str] = None):
-    """Available (unrostered) players. Optional query: league_id."""
-    if league_id:
-        gold_league.ensure_league_ingested(league_id)
-    return gold_players.get_available_players(league_id=league_id)
+    """Available (unrostered) players. Optional query: league_id. Uses default league if omitted."""
+    lid = league_id or get_default_league_id()
+    gold_league.ensure_league_ingested(lid)
+    return gold_players.get_available_players(league_id=lid)
 
 
 @app.post("/league/validate")
@@ -56,16 +57,16 @@ def league_validate(body: LeagueValidateBody):
 
 @app.get("/injury")
 def injury_report(league_id: Optional[str] = None):
-    """Injury report. Optional query: league_id."""
-    if league_id:
-        gold_league.ensure_league_ingested(league_id)
-    return gold_injury.get_injury_report(league_id=league_id)
+    """Injury report. Optional query: league_id. Uses default league if omitted."""
+    lid = league_id or get_default_league_id()
+    gold_league.ensure_league_ingested(lid)
+    return gold_injury.get_injury_report(league_id=lid)
 
 
 @app.get("/recommendations/waiver")
 def recommendations_waiver(league_id: Optional[str] = None, limit: int = 20):
-    """Waiver/add recommendations: available players with score. Shape: {recommendations: [...], league_id}."""
-    if league_id:
-        gold_league.ensure_league_ingested(league_id)
-    recs = gold_recommendations.get_waiver_recommendations(league_id=league_id, limit=limit)
-    return {"recommendations": recs, "league_id": league_id or ""}
+    """Waiver/add recommendations: available players with score. Shape: {recommendations: [...], league_id}. Uses default league if omitted."""
+    lid = league_id or get_default_league_id()
+    gold_league.ensure_league_ingested(lid)
+    recs = gold_recommendations.get_waiver_recommendations(league_id=lid, limit=limit)
+    return {"recommendations": recs, "league_id": lid}
