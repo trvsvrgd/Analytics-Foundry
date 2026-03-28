@@ -1,6 +1,6 @@
 """Silver: cleaned, conformed rosters. Canonical schema; dedup by (league_id, roster_id) (latest wins)."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from analytics_foundry.bronze import store as bronze_store
 
@@ -10,7 +10,7 @@ NFL_SLEEPER = "nfl_sleeper"
 SILVER_ROSTER_KEYS = ("league_id", "roster_id", "players")
 
 
-def _to_silver_roster(rec: Dict[str, Any]) -> Dict[str, Any]:
+def _to_silver_roster(rec: dict[str, Any]) -> dict[str, Any]:
     """Transform raw bronze record to canonical silver roster schema."""
     lid = rec.get("league_id")
     rid = rec.get("roster_id")
@@ -25,10 +25,10 @@ def _to_silver_roster(rec: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_rosters(league_id: str | None = None) -> List[Dict[str, Any]]:
+def get_rosters(league_id: str | None = None) -> list[dict[str, Any]]:
     """Return silver rosters. If league_id given, filter to that league. Dedup by (league_id, roster_id)."""
     raw = bronze_store.get_raw(NFL_SLEEPER, "rosters")
-    by_key: Dict[tuple, Dict[str, Any]] = {}
+    by_key: dict[tuple, dict[str, Any]] = {}
     for rec in raw:
         silver = _to_silver_roster(rec)
         if not silver:

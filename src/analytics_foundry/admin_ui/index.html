@@ -104,6 +104,30 @@
   <h1>Foundry Admin</h1>
 
   <section>
+    <h2>Pipeline &amp; quality</h2>
+    <button class="secondary" onclick="loadPipeline()">Refresh health</button>
+    <pre id="pipelineHealth" class="panel" style="margin-top:0.5rem; max-height:14rem;">—</pre>
+    <h2 style="margin-top:1rem;">Ingest logs (buffer)</h2>
+    <button class="secondary" onclick="loadAdminLogs()">Refresh logs</button>
+    <pre id="adminLogs" class="panel" style="margin-top:0.5rem; max-height:12rem;">—</pre>
+    <h2 style="margin-top:1rem;">Lineage</h2>
+    <button class="secondary" onclick="loadLineage()">Refresh lineage</button>
+    <pre id="lineageView" class="panel" style="margin-top:0.5rem; max-height:14rem;">—</pre>
+  </section>
+
+  <section>
+    <h2>Tracked leagues (registry)</h2>
+    <p class="badge">Persisted under <code>meta/leagues.json</code> when data dir is set.</p>
+    <div class="row">
+      <input type="text" id="trackLeagueId" placeholder="League ID to track" />
+      <input type="text" id="trackLeagueLabel" placeholder="Label (optional)" style="max-width:12rem;" />
+      <button onclick="trackLeague()">Add</button>
+      <button class="secondary" onclick="loadTrackedLeagues()">Refresh list</button>
+    </div>
+    <div id="trackedLeagues" class="panel">—</div>
+  </section>
+
+  <section>
     <h2>League &amp; Ingest</h2>
     <p class="badge">Default league: <span id="defaultLeagueId">—</span></p>
     <div class="row">
@@ -339,6 +363,92 @@
       }
     }
 
+    async function loadPipeline() {
+      const el = document.getElementById('pipelineHealth');
+      el.textContent = 'Loading…';
+      try {
+        const r = await fetch(base + '/pipeline/health');
+        const d = await r.json();
+        el.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadAdminLogs() {
+      const el = document.getElementById('adminLogs');
+      el.textContent = 'Loading…';
+      try {
+        const r = await fetch(base + '/logs?limit=80');
+        const d = await r.json();
+        el.textContent = JSON.stringify(d, null, 2);
+      } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadLineage() {
+      const el = document.getElementById('lineageView');
+      el.textContent = 'Loading…';
+      try {
+        const r = await fetch(base + '/lineage');
+        const d = await r.json();
+        el.textContent = JSON.stringify(d.entries || d, null, 2);
+      } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function loadTrackedLeagues() {
+      const el = document.getElementById('trackedLeagues');
+      try {
+        const r = await fetch(base + '/leagues');
+        const d = await r.json();
+        const list = d.leagues || [];
+        if (list.length === 0) {
+          el.innerHTML = '<span class="badge">No tracked leagues.</span>';
+          return;
+        }
+        el.innerHTML = '<ul class="table-list">' + list.map(x => {
+          const id = x.league_id || '';
+          return '<li>' + id + (x.label ? ' — ' + x.label : '') +
+            ' <a href="#" data-del="' + encodeURIComponent(id) + '">remove</a></li>';
+        }).join('') + '</ul>';
+        el.querySelectorAll('a[data-del]').forEach(a => {
+          a.addEventListener('click', async e => {
+            e.preventDefault();
+            const id = decodeURIComponent(a.dataset.del);
+            await fetch(base + '/leagues/' + encodeURIComponent(id), { method: 'DELETE' });
+            loadTrackedLeagues();
+          });
+        });
+      } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function trackLeague() {
+      const id = document.getElementById('trackLeagueId').value.trim();
+      const label = document.getElementById('trackLeagueLabel').value.trim();
+      if (!id) { alert('Enter a league ID'); return; }
+      try {
+        const body = label ? { league_id: id, label } : { league_id: id };
+        const r = await fetch(base + '/leagues', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (!r.ok) {
+          const d = await r.json().catch(() => ({}));
+          alert(d.detail || 'Failed');
+          return;
+        }
+        loadTrackedLeagues();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
     async function loadRuns() {
       const el = document.getElementById('runsList');
       try {
@@ -358,6 +468,8 @@
     }
 
     loadConfig();
+    loadPipeline();
+    loadTrackedLeagues();
     loadTables();
     loadTransformations();
     loadRuns();

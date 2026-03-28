@@ -9,8 +9,16 @@ Generalized backend data science workbench: medallion architecture (bronze → s
 ## Run tests
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 python -m pytest
+python -m pytest --cov=analytics_foundry --cov-report=term-missing
+```
+
+Lint and types:
+
+```bash
+python -m ruff check src tests
+python -m mypy src/analytics_foundry
 ```
 
 ## Run API (after Phase 1 implementation)
@@ -24,7 +32,10 @@ The app runs locally. Bronze data is stored in the **local file structure** so i
 
 - **Data directory:** Set `FOUNDRY_DATA_DIR` to a path (e.g. `data` or `./data`). Default is `data` (relative to the process cwd). Bronze tables are stored as `{FOUNDRY_DATA_DIR}/bronze/{source_id}/{table}.jsonl` (JSON Lines).
 - **Default league:** Set `FOUNDRY_DEFAULT_LEAGUE_ID` to override the default Sleeper league used when API requests omit `league_id`. Built-in default: `1261894762944802816`.
-- **Startup:** The API loads existing bronze data from that directory; new ingest appends to the same files. The Admin UI at `/admin` reads this data through the API (tables list and sample endpoints).
+- **Multi-tenant (optional):** Set `FOUNDRY_TENANT_ID` to isolate data under `{FOUNDRY_DATA_DIR}/tenants/{tenant_id}/`.
+- **Startup:** The API validates the data directory, configures logging, loads bronze from disk, and registers the NFL/Sleeper adapter. Broad NFL sync **replaces** the bronze `players` snapshot; league-scoped sync **replaces** rows for that `league_id` in `league`, `rosters`, and `matchups` (no unbounded duplicate growth).
+- **Operations:** `GET /health`, `GET /ready`, optional `GET /metrics` (set `FOUNDRY_PROMETHEUS=1`). See **DEPLOYMENT.md** for systemd and scheduling.
+- **Admin UI** at `/admin` includes pipeline health, log buffer, lineage, tracked leagues (`meta/leagues.json`), tables, SQL artifacts, and ingest actions.
 
 Frontend: set `VITE_API_BASE_URL` to this backend’s base URL (CORS enabled).
 

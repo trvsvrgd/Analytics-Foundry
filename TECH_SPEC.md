@@ -106,6 +106,13 @@ NFL/Sleeper adapter: ingest Sleeper/NFL data through bronze → silver → gold;
 | View transformation | GET `/admin/transformations/{layer}/{name}` |
 | Job runs (stub) | GET `/admin/runs` |
 | Validate league (UI) | GET `/admin/league/validate?league_id=...` |
+| Pipeline health + DQ summary | GET `/admin/pipeline/health` |
+| Recent logs (in-memory ring buffer) | GET `/admin/logs?limit=...` |
+| Data lineage (static graph) | GET `/admin/lineage` |
+| Quality checks | GET `/admin/quality` |
+| Tracked league registry | GET/POST `/admin/leagues`, DELETE `/admin/leagues/{league_id}` |
+
+**Public ops endpoints (same app):** `GET /health`, `GET /ready`, optional `GET /metrics` when `FOUNDRY_PROMETHEUS=1`.
 
 ---
 
@@ -121,6 +128,6 @@ The app is intended to run on a **local machine**. Bronze (raw) data is persiste
 
 ## Current State (Audit)
 
-- **Repository:** Greenfield. Only README.md in root; no Python or API code yet.
-- **Technical debt:** N/A (no legacy code).
-- **Vibe inconsistencies:** None; baseline is spec and constitution. Phase 1 is initial build to meet this spec.
+- **Repository:** Python package `analytics_foundry` with bronze/silver/gold, NFL/Sleeper adapter, FastAPI API matching the contract above, Foundry Admin UI, health/readiness/metrics hooks, bronze refresh (full players snapshot + per-league replace), optional tenant data subdir, lineage and quality admin surfaces, structured logging + in-memory log ring for `/admin/logs`.
+- **Technical debt:** No SQL engine execution of `sql/` artifacts yet (documentation-oriented); no built-in scheduler (use cron/systemd); RBAC is a header helper stub only.
+- **Ingest semantics:** Broad sync replaces bronze `players`; league sync replaces rows for that `league_id` in league/rosters/matchups tables.

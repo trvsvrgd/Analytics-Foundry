@@ -1,6 +1,5 @@
 """PLAN 1.2: Verify medallion layer modules exist and import; layout matches TECH_SPEC."""
 
-import pytest
 
 
 def test_bronze_imports():
@@ -26,7 +25,7 @@ def test_gold_imports():
 
 def test_medallion_layout_matches_spec():
     """All three medallion layers under analytics_foundry; TECH_SPEC bronze/silver/gold description matches."""
-    from analytics_foundry import bronze, silver, gold
+    from analytics_foundry import bronze, gold, silver
 
     # Layout: bronze (raw), silver (cleaned/conformed), gold (aggregates/analytics)
     assert "raw" in bronze.__doc__.lower() or "ingest" in bronze.__doc__.lower()

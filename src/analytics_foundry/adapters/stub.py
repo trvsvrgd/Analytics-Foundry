@@ -2,8 +2,6 @@
 
 from typing import Any
 
-from analytics_foundry.adapters.protocol import SourceAdapter
-
 
 class StubSourceAdapter:
     """Concrete stub: implements SourceAdapter, does no I/O. Used to verify interface and registry."""

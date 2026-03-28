@@ -19,6 +19,11 @@ api = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.22",
 ]
+dev = [
+    "ruff>=0.3",
+    "mypy>=1.8",
+    "pytest-cov>=4.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -30,3 +35,32 @@ analytics_foundry = ["admin_ui/*"]
 addopts = ["-v", "--tb=short"]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["analytics_foundry"]
+branch = true
+omit = ["*/tests/*"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+packages = ["analytics_foundry"]
+warn_unused_ignores = true
+ignore_missing_imports = true
+show_error_codes = true

@@ -1,8 +1,6 @@
 """Load SQL artifacts from sql/ directory. Medallion flow: bronze → silver → gold."""
 
-import os
 from pathlib import Path
-from typing import Dict, List
 
 _SQL_ROOT = Path(__file__).resolve().parent.parent.parent / "sql"
 
@@ -12,7 +10,7 @@ def get_sql_root() -> Path:
     return _SQL_ROOT
 
 
-def list_sql_files(layer: str) -> List[str]:
+def list_sql_files(layer: str) -> list[str]:
     """List .sql filenames in sql/<layer>/ (e.g. bronze, silver, gold)."""
     folder = _SQL_ROOT / layer
     if not folder.is_dir():
@@ -26,6 +24,6 @@ def read_sql(layer: str, name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def medallion_layers() -> List[str]:
+def medallion_layers() -> list[str]:
     """Return medallion layer order: bronze, silver, gold."""
     return ["bronze", "silver", "gold"]

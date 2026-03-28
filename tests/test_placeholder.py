@@ -1,6 +1,5 @@
 """Placeholder test so pytest runs successfully (PLAN 1.1)."""
 
-import pytest
 
 
 def test_placeholder_passes():

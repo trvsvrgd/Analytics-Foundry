@@ -120,7 +120,7 @@ def test_players_available_uses_default_league_when_omitted(client):
 
 def test_cors_headers_present(client):
     """CORS headers present for cross-origin frontend."""
-    resp = client.options("/players/available", headers={"Origin": "https://frontend.example.com"})
+    _ = client.options("/players/available", headers={"Origin": "https://frontend.example.com"})
     # FastAPI CORS may respond to GET; check that allowed methods/origin are in response
     resp2 = client.get("/players/available")
     assert resp2.status_code == 200

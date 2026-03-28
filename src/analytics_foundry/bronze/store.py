@@ -3,9 +3,9 @@
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
-_RAW: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+_RAW: dict[tuple[str, str], list[dict[str, Any]]] = {}
 
 # Override for tests; when None, get_data_root() reads from env.
 _DATA_ROOT_OVERRIDE: str | None = None
@@ -14,11 +14,19 @@ _DATA_ROOT_OVERRIDE: str | None = None
 def get_data_root() -> Path | None:
     """Return path to data directory, or None for in-memory only. Reads env each call."""
     if _DATA_ROOT_OVERRIDE is not None:
-        return Path(_DATA_ROOT_OVERRIDE).resolve() if _DATA_ROOT_OVERRIDE.strip() else None
-    v = os.environ.get("FOUNDRY_DATA_DIR", "data")
-    if not v or not str(v).strip():
+        base = Path(_DATA_ROOT_OVERRIDE).resolve() if _DATA_ROOT_OVERRIDE.strip() else None
+    else:
+        v = os.environ.get("FOUNDRY_DATA_DIR", "data")
+        if not v or not str(v).strip():
+            base = None
+        else:
+            base = Path(v).resolve()
+    if base is None:
         return None
-    return Path(v).resolve()
+    tenant = os.environ.get("FOUNDRY_TENANT_ID", "").strip()
+    if tenant:
+        return (base / "tenants" / tenant).resolve()
+    return base
 
 
 def set_data_root(path: str | Path | None) -> None:
@@ -76,7 +84,45 @@ def load_from_disk() -> None:
                 _load_table(source_id, table)
 
 
-def append_raw(source_id: str, table: str, records: List[Dict[str, Any]]) -> None:
+def _row_matches(row: dict[str, Any], match: dict[str, Any]) -> bool:
+    """True if row has the same values for every key in match."""
+    return all(row.get(k) == v for k, v in match.items())
+
+
+def _rewrite_jsonl(source_id: str, table: str, records: list[dict[str, Any]]) -> None:
+    """Persist full table to disk (overwrite). No-op when no data root."""
+    p = _bronze_path(source_id, table)
+    if p is None:
+        return
+    _ensure_dir(p.parent)
+    with open(p, "w", encoding="utf-8") as f:
+        for rec in records:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def replace_raw_table(source_id: str, table: str, records: list[dict[str, Any]]) -> None:
+    """Replace entire bronze table (full snapshot refresh). Overwrites JSONL when persisted."""
+    key = (source_id, table)
+    _RAW[key] = list(records)
+    _rewrite_jsonl(source_id, table, _RAW[key])
+
+
+def replace_rows_matching(
+    source_id: str,
+    table: str,
+    match: dict[str, Any],
+    new_records: list[dict[str, Any]],
+) -> None:
+    """Remove rows matching all key/value pairs in match, then append new_records (league-scoped refresh)."""
+    existing = get_raw(source_id, table)
+    kept = [r for r in existing if not _row_matches(r, match)]
+    merged = kept + new_records
+    key = (source_id, table)
+    _RAW[key] = merged
+    _rewrite_jsonl(source_id, table, merged)
+
+
+def append_raw(source_id: str, table: str, records: list[dict[str, Any]]) -> None:
     """Append raw records to a bronze table. Persists to local file if FOUNDRY_DATA_DIR is set."""
     key = (source_id, table)
     if key not in _RAW:
@@ -91,13 +137,13 @@ def append_raw(source_id: str, table: str, records: List[Dict[str, Any]]) -> Non
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
 
-def get_raw(source_id: str, table: str) -> List[Dict[str, Any]]:
+def get_raw(source_id: str, table: str) -> list[dict[str, Any]]:
     """Return all raw records for (source_id, table). Loads from disk if not in memory and data root set."""
     _load_table(source_id, table)
     return _RAW.get((source_id, table), []).copy()
 
 
-def list_tables() -> List[Tuple[str, str, int]]:
+def list_tables() -> list[tuple[str, str, int]]:
     """Return list of (source_id, table, row_count). Includes tables on disk if data root set."""
     root = get_data_root()
     if root is not None:
@@ -116,7 +162,6 @@ def list_tables() -> List[Tuple[str, str, int]]:
 
 def clear() -> None:
     """Clear all bronze data from memory and remove persisted files (for tests)."""
-    root = get_data_root()
     for (source_id, table) in list(_RAW.keys()):
         p = _bronze_path(source_id, table)
         if p is not None and p.is_file():

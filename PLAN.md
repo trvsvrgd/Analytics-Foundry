@@ -15,6 +15,7 @@
 | **2.3** SQL artifacts: bronze/silver/gold .sql + `sql_loader` | `tests/test_sql_artifacts.py` (7 tests) pass; medallion flow preserved. |
 | **2.4** Recommendation logic: waiver recommendations + endpoint | `gold/recommendations.py`, `tests/test_recommendations.py` (5 tests) pass. |
 | **1.5** Silver layer: clean/conform NFL entities (players, leagues, rosters, injuries); schema and naming consistent | `silver/players.py`, `silver/league.py`, `silver/rosters.py`, `silver/injuries.py`; gold reads from silver; `tests/test_silver.py` (11 tests) pass. |
+| **Ops / MVP+** | Implemented: `/health`, `/ready`, optional `/metrics`, startup validation, structured logging, bronze refresh ingest, admin pipeline/logs/lineage/quality/leagues, `DEPLOYMENT.md`, ruff/mypy, pytest coverage ≥80%; extended pytest suite. |
 
 ---
 
@@ -44,7 +45,7 @@
 | 2.3 | SQL-heavy refactor: move transforms to SQL where applicable (e.g. Delta/Spark SQL or raw SQL scripts) | Tests for SQL artifacts; medallion still bronze → silver → gold. |
 | 2.4 | Recommendation logic (waiver/add) implementation if not done in Phase 1 | Unit tests for logic; integration test for recommendation endpoint. |
 
-**Phase 2 completed:** 2.1 Contract tests (`tests/test_api_contract.py`); 2.2 MockFixtureAdapter (`adapters/mock_fixture.py`, `tests/test_second_adapter.py`); 2.3 SQL artifacts (`sql/`, `sql_loader.py`, `tests/test_sql_artifacts.py`); 2.4 Waiver recommendations (`gold/recommendations.py`, `tests/test_recommendations.py`). All 39 tests pass.
+**Phase 2 completed:** 2.1 Contract tests (`tests/test_api_contract.py`); 2.2 MockFixtureAdapter (`adapters/mock_fixture.py`, `tests/test_second_adapter.py`); 2.3 SQL artifacts (`sql/`, `sql_loader.py`, `tests/test_sql_artifacts.py`); 2.4 Waiver recommendations (`gold/recommendations.py`, `tests/test_recommendations.py`). Run `pytest` for the current count (90+ tests).
 
 ---
 
@@ -58,4 +59,4 @@
 
 ## Next Step to Execute
 
-**Next:** **1.10 — Docs.** Phase 1.5 (silver) complete. Gold (1.6), REST API (1.7), player shape (1.8), recommendation stub (1.9) already in place. Update README/PLAN "current state" as needed.
+**Next:** Optional **scheduler** inside the app or documented GitHub Actions/systemd examples; optional **SQL runner** for `sql/` artifacts against a local engine; expand **E2E** tests with `TestClient` context manager consistently across older tests.

@@ -1,6 +1,6 @@
 """Gold helpers for league-scoped data. API layer calls ensure_league_ingested before serving."""
 
-from typing import Any, Dict
+from typing import Any
 
 from analytics_foundry.adapters import get_adapter
 from analytics_foundry.silver import league as silver_league
@@ -13,7 +13,7 @@ def ensure_league_ingested(league_id: str) -> None:
         adapter.ingest_to_bronze(league_id=league_id)
 
 
-def validate_league(league_id: str) -> Dict[str, Any]:
+def validate_league(league_id: str) -> dict[str, Any]:
     """Return {valid: bool, league_id: str, league_name: str} per API contract."""
     ensure_league_ingested(league_id)
     lg = silver_league.get_league(league_id)

@@ -237,3 +237,60 @@ def test_admin_ui_served(client):
     resp2 = client.get("/admin/")
     assert resp2.status_code == 200
     assert b"Foundry Admin" in resp2.content
+
+
+def test_admin_pipeline_health(client):
+    """GET /admin/pipeline/health returns freshness and quality."""
+    resp = client.get("/admin/pipeline/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "adapter_registered" in data
+    assert "quality" in data
+
+
+def test_admin_lineage(client):
+    """GET /admin/lineage returns entries."""
+    resp = client.get("/admin/lineage")
+    assert resp.status_code == 200
+    assert "entries" in resp.json()
+    assert len(resp.json()["entries"]) >= 1
+
+
+def test_admin_logs(client):
+    """GET /admin/logs returns a list."""
+    resp = client.get("/admin/logs")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+
+
+def test_admin_quality(client):
+    """GET /admin/quality returns silver and bronze summaries."""
+    resp = client.get("/admin/quality")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "silver_players" in body
+    assert "bronze_players" in body
+
+
+def test_admin_tracked_leagues_crud(client):
+    """POST/GET/DELETE /admin/leagues registry."""
+    assert client.get("/admin/leagues").status_code == 200
+    r = client.post("/admin/leagues", json={"league_id": "track_league_z9", "label": "t"})
+    assert r.status_code == 200
+    listed = client.get("/admin/leagues").json()["leagues"]
+    assert any(x.get("league_id") == "track_league_z9" for x in listed)
+    d = client.delete("/admin/leagues/track_league_z9")
+    assert d.status_code == 200
+    listed2 = client.get("/admin/leagues").json()["leagues"]
+    assert not any(x.get("league_id") == "track_league_z9" for x in listed2)
+
+
+def test_admin_gold_waiver_sample(client):
+    """GET /admin/tables/gold/waiver_recommendations returns rows."""
+    bronze_store.append_raw("nfl_sleeper", "players", [
+        {"player_id": "w1", "display_name": "Waivers", "position": "RB", "team": "KC"},
+    ])
+    resp = client.get("/admin/tables/gold/waiver_recommendations", params={"limit": 5})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "waiver_recommendations"
+    assert isinstance(resp.json()["rows"], list)

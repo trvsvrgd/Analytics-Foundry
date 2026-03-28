@@ -2,6 +2,6 @@
 
 __version__ = "0.1.0"
 
-from . import bronze, silver, gold  # noqa: F401 — medallion layers
+from . import bronze, gold, silver  # noqa: F401 — medallion layers
 
 __all__ = ["__version__", "bronze", "silver", "gold"]
