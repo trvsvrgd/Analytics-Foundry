@@ -148,6 +148,53 @@ def test_admin_config(client):
     assert "default_league_id" in data
     assert isinstance(data["default_league_id"], str)
     assert len(data["default_league_id"]) > 0
+    assert data["admin_auth_enabled"] is False
+
+
+def test_admin_auth_blocks_api_when_enabled(monkeypatch):
+    """Admin API requires a key when FOUNDRY_ADMIN_API_KEY is configured."""
+    monkeypatch.setenv("FOUNDRY_ADMIN_API_KEY", "secret")
+    c = TestClient(app)
+    resp = c.get("/admin/config")
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "Admin authentication required"
+    assert resp.headers["www-authenticate"] == "ApiKey"
+
+
+def test_admin_auth_accepts_header(monkeypatch):
+    """Admin API accepts X-Foundry-Admin-Key when auth is enabled."""
+    monkeypatch.setenv("FOUNDRY_ADMIN_API_KEY", "secret")
+    c = TestClient(app)
+    resp = c.get("/admin/config", headers={"X-Foundry-Admin-Key": "secret"})
+    assert resp.status_code == 200
+    assert resp.json()["admin_auth_enabled"] is True
+
+
+def test_admin_auth_accepts_query_param(monkeypatch):
+    """Admin API accepts admin_key query param when auth is enabled."""
+    monkeypatch.setenv("FOUNDRY_ADMIN_API_KEY", "secret")
+    c = TestClient(app)
+    resp = c.get("/admin/config", params={"admin_key": "secret"})
+    assert resp.status_code == 200
+    assert resp.json()["admin_auth_enabled"] is True
+
+
+def test_admin_auth_sets_cookie_from_ui_route(monkeypatch):
+    """GET /admin?admin_key=... sets a cookie that authenticates later API calls."""
+    monkeypatch.setenv("FOUNDRY_ADMIN_API_KEY", "secret")
+    c = TestClient(app)
+    resp = c.get("/admin", params={"admin_key": "secret"})
+    assert resp.status_code == 200
+    assert resp.cookies.get("foundry_admin_key") == "secret"
+    assert c.get("/admin/config").status_code == 200
+
+
+def test_admin_auth_rejects_wrong_key(monkeypatch):
+    """Admin API rejects the wrong key even when auth is enabled."""
+    monkeypatch.setenv("FOUNDRY_ADMIN_API_KEY", "secret")
+    c = TestClient(app)
+    resp = c.get("/admin/config", headers={"X-Foundry-Admin-Key": "wrong"})
+    assert resp.status_code == 401
 
 
 def test_admin_ingest_league(client):

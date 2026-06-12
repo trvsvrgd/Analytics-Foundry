@@ -97,6 +97,20 @@ def get_raw(source_id: str, table: str) -> List[Dict[str, Any]]:
     return _RAW.get((source_id, table), []).copy()
 
 
+def delete_table(source_id: str, table: str) -> bool:
+    """Delete one bronze table from memory and local JSONL storage."""
+    removed = (source_id, table) in _RAW
+    _RAW.pop((source_id, table), None)
+    p = _bronze_path(source_id, table)
+    if p is not None and p.is_file():
+        try:
+            p.unlink()
+            removed = True
+        except OSError:
+            pass
+    return removed
+
+
 def list_tables() -> List[Tuple[str, str, int]]:
     """Return list of (source_id, table, row_count). Includes tables on disk if data root set."""
     root = get_data_root()
