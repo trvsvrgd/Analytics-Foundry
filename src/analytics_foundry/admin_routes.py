@@ -1,16 +1,18 @@
-"""Admin API for Foundry UI: ingest, tables, transformations, runs (stub). Unauthenticated for local/dev."""
+"""Admin API for Foundry UI: ingest, tables, transformations, and workbench control plane."""
 
-import time
+import json
 from pathlib import Path
+import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from analytics_foundry import workbench
 from analytics_foundry.adapters import get_adapter
 from analytics_foundry.bronze import store as bronze_store
-from analytics_foundry.config import get_default_league_id
+from analytics_foundry.config import admin_auth_enabled, get_admin_api_key, get_default_league_id
 from analytics_foundry.silver import injuries as silver_injuries
 from analytics_foundry.silver import league as silver_league
 from analytics_foundry.silver import players as silver_players
@@ -20,10 +22,30 @@ from analytics_foundry.gold import league as gold_league
 from analytics_foundry.gold import players as gold_players
 from analytics_foundry.sql_loader import list_sql_files, medallion_layers, read_sql
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+_ADMIN_AUTH_COOKIE = "foundry_admin_key"
+_ADMIN_AUTH_HEADER = "X-Foundry-Admin-Key"
 
-# Stub: in-memory run history (last league + last broad sync)
-_RUNS: List[Dict[str, Any]] = []
+
+def require_admin_auth(request: Request) -> None:
+    """Protect /admin routes only when FOUNDRY_ADMIN_API_KEY is configured."""
+    expected = get_admin_api_key()
+    if expected is None:
+        return
+    provided = (
+        request.headers.get(_ADMIN_AUTH_HEADER)
+        or request.query_params.get("admin_key")
+        or request.cookies.get(_ADMIN_AUTH_COOKIE)
+    )
+    if provided != expected:
+        raise HTTPException(
+            status_code=401,
+            detail="Admin authentication required",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_auth)])
+
 _DEFAULT_SAMPLE_LIMIT = 100
 
 
@@ -36,28 +58,152 @@ class IngestLeaguesBody(BaseModel):
     league_ids: str | list[str]
 
 
-def _record_run(kind: str, league_id: Optional[str] = None) -> None:
-    _RUNS.insert(0, {
-        "kind": kind,
-        "league_id": league_id,
-        "timestamp": time.time(),
-    })
-    while len(_RUNS) > 50:
-        _RUNS.pop()
+class QualityRuleBody(BaseModel):
+    table_id: str
+    type: str
+    name: Optional[str] = None
+    column: Optional[str] = None
+    params: Dict[str, Any] = Field(default_factory=dict)
+    severity: str = "error"
+    enabled: bool = True
+
+
+class QualityRunBody(BaseModel):
+    table_id: str
+    rule_ids: Optional[List[str]] = None
+
+
+class JobBody(BaseModel):
+    name: str
+    kind: str
+    target: Dict[str, Any] = Field(default_factory=dict)
+    schedule: Dict[str, Any] = Field(default_factory=lambda: {"type": "manual"})
+    retry_count: int = 0
+    retry_delay_seconds: int = 60
+    enabled: bool = True
+    next_run_at: Optional[float] = None
+
+
+class ModelBody(BaseModel):
+    name: str
+    source_table_id: str
+    target_table_id: Optional[str] = None
+    operations: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class SourceBody(BaseModel):
+    connector: str
+    name: Optional[str] = None
+    source_id: Optional[str] = None
+    table_name: Optional[str] = None
+    format: Optional[str] = None
+    filename: Optional[str] = None
+    content: Optional[str] = None
+    path: Optional[str] = None
+    url: Optional[str] = None
+    records_path: Optional[str] = None
+
+
+class StorageRetentionBody(BaseModel):
+    scopes: List[str] = Field(default_factory=lambda: ["bronze", "models", "run_history"])
+    older_than_days: Optional[float] = 30
+    older_than_seconds: Optional[float] = None
+    table_id: Optional[str] = None
+    now: Optional[float] = None
+    confirm: bool = False
+
+
+class AlertDeliveryTargetBody(BaseModel):
+    name: Optional[str] = None
+    kind: str = "webhook"
+    url: str
+    headers: Dict[str, Any] = Field(default_factory=dict)
+    severities: List[str] = Field(default_factory=lambda: ["warning", "error"])
+    enabled: bool = True
+    timeout_seconds: int = 10
+
+
+class AlertDeliveryToggleBody(BaseModel):
+    enabled: bool
+
+
+class WorkbenchImportBody(BaseModel):
+    bundle: Dict[str, Any]
+    mode: str = "merge"
+
+
+def _body_dict(body: BaseModel) -> Dict[str, Any]:
+    """Return model data on both Pydantic v1 and v2."""
+    if hasattr(body, "model_dump"):
+        return body.model_dump()
+    return body.dict()
 
 
 @router.get("/config")
 def admin_config() -> Dict[str, Any]:
     """Return config values for the admin UI (e.g. default league ID)."""
-    return {"default_league_id": get_default_league_id()}
+    return {
+        "default_league_id": get_default_league_id(),
+        "admin_auth_enabled": admin_auth_enabled(),
+    }
 
 
 @router.post("/ingest/league")
 def admin_ingest_league(body: IngestLeagueBody) -> Dict[str, Any]:
     """Trigger league-scoped ingest for the given league_id. Uses ensure_league_ingested."""
     gold_league.ensure_league_ingested(body.league_id)
-    _record_run("league", body.league_id)
+    workbench.record_run(
+        "league",
+        league_id=body.league_id,
+        target={"league_id": body.league_id},
+    )
     return {"ok": True, "league_id": body.league_id}
+
+
+@router.get("/sources/templates")
+def admin_source_templates() -> List[Dict[str, Any]]:
+    """Return supported low-code source connectors."""
+    return workbench.source_connector_templates()
+
+
+@router.get("/sources")
+def admin_sources() -> List[Dict[str, Any]]:
+    """Return saved source definitions."""
+    return workbench.list_sources()
+
+
+@router.post("/sources/preview")
+def admin_preview_source(body: SourceBody) -> Dict[str, Any]:
+    """Preview a low-code source without writing bronze data."""
+    try:
+        return workbench.preview_source(_body_dict(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON source: {exc}")
+
+
+@router.post("/sources/ingest")
+def admin_ingest_source(body: SourceBody) -> Dict[str, Any]:
+    """Ingest a low-code source into bronze storage."""
+    try:
+        return workbench.ingest_source(_body_dict(body))
+    except ValueError as exc:
+        run = workbench.record_run(
+            "source_ingest",
+            status="failed",
+            target={"source_id": body.source_id, "table_name": body.table_name},
+            message=str(exc),
+        )
+        workbench.create_alert(
+            title="Source ingest failed",
+            message=str(exc),
+            severity="error",
+            run_id=run["id"],
+        )
+        raise HTTPException(status_code=400, detail=str(exc))
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON source: {exc}")
 
 
 def _parse_league_ids(raw: str | list[str]) -> list[str]:
@@ -72,6 +218,63 @@ def _parse_league_ids(raw: str | list[str]) -> list[str]:
     return ids
 
 
+def _rows_for_table_id(stable_table_id: str) -> List[Dict[str, Any]]:
+    """Resolve a workbench table id to current rows."""
+    try:
+        parsed = workbench.parse_table_id(stable_table_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    layer = parsed["layer"]
+    name = parsed["name"]
+    if layer == "bronze":
+        return bronze_store.get_raw(parsed["source_id"], name)
+    if layer == "silver":
+        if name == "players":
+            return silver_players.get_players()
+        if name == "league":
+            return silver_league.get_leagues()
+        if name == "rosters":
+            return silver_rosters.get_rosters()
+        if name == "injuries":
+            return silver_injuries.get_injuries()
+        raise HTTPException(status_code=404, detail=f"Unknown silver table: {name}")
+    if layer == "gold":
+        if name == "available_players":
+            return gold_players.get_available_players()
+        if name == "injury":
+            return gold_injury.get_injury_report()
+        raise HTTPException(status_code=404, detail=f"Unknown gold table: {name}")
+    if layer == "model":
+        model = workbench.get_model(name)
+        if model is None:
+            raise HTTPException(status_code=404, detail=f"Unknown model table: {name}")
+        if workbench.model_has_materialized_rows(model["id"]):
+            return workbench.get_materialized_model_rows(model["id"])
+        return workbench.preview_model(model["id"], _rows_for_table_id, limit=1000)["rows"]
+    raise HTTPException(status_code=400, detail=f"Unknown layer: {layer}")
+
+
+def _storage_path_for_table_id(stable_table_id: str) -> str | None:
+    parsed = workbench.parse_table_id(stable_table_id)
+    if parsed["layer"] == "bronze":
+        return workbench.bronze_storage_path(parsed["source_id"], parsed["name"])
+    if parsed["layer"] == "model":
+        model = workbench.get_model(parsed["name"])
+        if model is None or not workbench.model_has_materialized_rows(model["id"]):
+            return None
+        return workbench.model_storage_path(model["id"])
+    return None
+
+
+def _profile_for_table_id(stable_table_id: str) -> Dict[str, Any]:
+    rows = _rows_for_table_id(stable_table_id)
+    return workbench.table_profile(
+        stable_table_id,
+        rows,
+        storage_path=_storage_path_for_table_id(stable_table_id),
+    )
+
+
 @router.post("/ingest/leagues")
 def admin_ingest_leagues(body: IngestLeaguesBody) -> Dict[str, Any]:
     """Trigger league-scoped ingest for one or more league IDs."""
@@ -80,7 +283,7 @@ def admin_ingest_leagues(body: IngestLeaguesBody) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="At least one league_id required")
     for lid in ids:
         gold_league.ensure_league_ingested(lid)
-        _record_run("league", lid)
+        workbench.record_run("league", league_id=lid, target={"league_id": lid})
     return {"ok": True, "league_ids": ids}
 
 
@@ -91,34 +294,35 @@ def admin_ingest_broad() -> Dict[str, Any]:
     if adapter is None:
         raise HTTPException(status_code=503, detail="nfl_sleeper adapter not registered")
     adapter.ingest_to_bronze()
-    _record_run("broad")
+    workbench.record_run("broad", target={"source_id": "nfl_sleeper"})
     return {"ok": True}
 
 
 @router.get("/tables")
 def admin_list_tables() -> Dict[str, Any]:
-    """List medallion datasets: bronze from store; silver/gold as fixed list with row_count or N/A."""
-    bronze = [
-        {"layer": "bronze", "source_id": s, "table": t, "row_count": n}
-        for s, t, n in bronze_store.list_tables()
-    ]
-    silver_tables = [
-        ("players", lambda: len(silver_players.get_players())),
-        ("league", lambda: len(silver_league.get_leagues())),
-        ("rosters", lambda: len(silver_rosters.get_rosters())),
-        ("injuries", lambda: len(silver_injuries.get_injuries())),
-    ]
+    """List medallion datasets with schema, freshness, storage, and lineage metadata."""
+    bronze = []
+    for source_id, table, row_count in bronze_store.list_tables():
+        stable_id = workbench.table_id("bronze", table, source_id=source_id)
+        profile = _profile_for_table_id(stable_id)
+        profile["table"] = table
+        profile["row_count"] = row_count
+        bronze.append(profile)
+
     silver = [
-        {"layer": "silver", "name": n, "row_count": fn()}
-        for n, fn in silver_tables
+        _profile_for_table_id(workbench.table_id("silver", name))
+        for name in ("players", "league", "rosters", "injuries")
     ]
-    gold_available = gold_players.get_available_players()
-    gold_injury_list = gold_injury.get_injury_report()
     gold = [
-        {"layer": "gold", "name": "available_players", "row_count": len(gold_available)},
-        {"layer": "gold", "name": "injury", "row_count": len(gold_injury_list)},
+        _profile_for_table_id(workbench.table_id("gold", name))
+        for name in ("available_players", "injury")
     ]
-    return {"bronze": bronze, "silver": silver, "gold": gold}
+    models = [
+        _profile_for_table_id(model["target_table_id"])
+        for model in workbench.list_models()
+        if model.get("target_table_id", "").startswith("model:")
+    ]
+    return {"bronze": bronze, "silver": silver, "gold": gold, "models": models}
 
 
 @router.get("/tables/{layer}/{source_or_name}")
@@ -154,6 +358,9 @@ def admin_sample_table_two_segments(
             rows = gold_injury.get_injury_report()[:limit]
         else:
             raise HTTPException(status_code=404, detail=f"Unknown gold table: {source_or_name}")
+        return {"layer": layer, "name": source_or_name, "rows": rows, "limit": limit}
+    if layer == "model":
+        rows = _rows_for_table_id(workbench.table_id("model", source_or_name))[:limit]
         return {"layer": layer, "name": source_or_name, "rows": rows, "limit": limit}
     raise HTTPException(status_code=400, detail=f"Unknown layer: {layer}")
 
@@ -194,8 +401,8 @@ def admin_get_transformation(layer: str, name: str) -> Dict[str, Any]:
 
 @router.get("/runs")
 def admin_list_runs() -> List[Dict[str, Any]]:
-    """Stub: return in-memory run history (last syncs). No scheduler yet."""
-    return [{"kind": r["kind"], "league_id": r.get("league_id"), "timestamp": r["timestamp"]} for r in _RUNS]
+    """Return persisted run history."""
+    return workbench.list_runs()
 
 
 @router.get("/league/validate")
@@ -204,15 +411,476 @@ def admin_validate_league(league_id: str) -> Dict[str, Any]:
     return gold_league.validate_league(league_id)
 
 
+@router.get("/table-profiles/{stable_table_id:path}")
+def admin_table_profile(stable_table_id: str) -> Dict[str, Any]:
+    """Return schema, freshness, storage, and lineage for one table id."""
+    return _profile_for_table_id(stable_table_id)
+
+
+@router.get("/lineage")
+def admin_lineage() -> Dict[str, Any]:
+    """Return deterministic lineage edges for core and low-code model assets."""
+    return {"edges": workbench.list_lineage_edges()}
+
+
+@router.get("/lineage/{stable_table_id:path}")
+def admin_lineage_for_table(stable_table_id: str) -> Dict[str, Any]:
+    """Return direct upstream and downstream lineage for one table id."""
+    return {
+        "table_id": stable_table_id,
+        **workbench.lineage_for_table(stable_table_id),
+    }
+
+
+@router.get("/quality/authoring-context/{stable_table_id:path}")
+def admin_quality_authoring_context(stable_table_id: str) -> Dict[str, Any]:
+    """Return schema-aware quality rule authoring metadata for one table."""
+    return workbench.quality_authoring_context(
+        stable_table_id,
+        _rows_for_table_id(stable_table_id),
+        reference_tables=_quality_reference_tables(),
+    )
+
+
+def _quality_reference_tables() -> List[Dict[str, Any]]:
+    table_groups = admin_list_tables()
+    references = []
+    for layer in ("bronze", "silver", "gold", "models"):
+        for table in table_groups.get(layer, []):
+            references.append(
+                {
+                    "table_id": table["table_id"],
+                    "label": table["table_id"],
+                    "columns": [column["name"] for column in table.get("schema") or []],
+                }
+            )
+    return references
+
+
+@router.get("/quality/templates")
+def admin_quality_templates() -> List[Dict[str, Any]]:
+    """Return supported data quality rule templates."""
+    return workbench.quality_templates()
+
+
+@router.get("/quality/rules")
+def admin_quality_rules(table_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return saved quality rules, optionally filtered to one table."""
+    return workbench.list_quality_rules(table_id)
+
+
+@router.post("/quality/rules")
+def admin_create_quality_rule(body: QualityRuleBody) -> Dict[str, Any]:
+    """Create a data quality rule attached to a table."""
+    try:
+        return workbench.create_quality_rule(_body_dict(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/quality/run")
+def admin_run_quality(body: QualityRunBody) -> Dict[str, Any]:
+    """Run enabled quality rules for one table and record alerts for failures."""
+    start = time.time()
+    try:
+        results = workbench.run_quality_rules(body.table_id, _rows_for_table_id, body.rule_ids)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        run = workbench.record_run(
+            "quality_check",
+            status="failed",
+            target={"table_id": body.table_id},
+            message=str(exc),
+            started_at=start,
+        )
+        workbench.create_alert(
+            title="Quality check failed",
+            message=str(exc),
+            severity="error",
+            table_id=body.table_id,
+            run_id=run["id"],
+        )
+        raise HTTPException(status_code=400, detail=str(exc))
+    status = "failed" if any(r["status"] in {"failed", "error"} for r in results) else "succeeded"
+    run = workbench.record_run(
+        "quality_check",
+        status=status,
+        target={"table_id": body.table_id},
+        details={"result_count": len(results)},
+        started_at=start,
+    )
+    return {"run": run, "results": results}
+
+
+@router.get("/quality/results")
+def admin_quality_results(table_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return latest quality check results."""
+    return workbench.list_quality_results(table_id)
+
+
+@router.get("/alerts")
+def admin_alerts(status: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Return in-app alerts from failed jobs and quality checks."""
+    return workbench.list_alerts(status)
+
+
+@router.get("/alerts/delivery/templates")
+def admin_alert_delivery_templates() -> List[Dict[str, Any]]:
+    """Return supported external alert delivery adapters."""
+    return workbench.alert_delivery_templates()
+
+
+@router.get("/alerts/delivery-targets")
+def admin_alert_delivery_targets() -> List[Dict[str, Any]]:
+    """Return saved external alert delivery targets."""
+    return workbench.list_alert_delivery_targets()
+
+
+@router.post("/alerts/delivery-targets")
+def admin_create_alert_delivery_target(body: AlertDeliveryTargetBody) -> Dict[str, Any]:
+    """Create a webhook-style alert delivery target."""
+    try:
+        return workbench.create_alert_delivery_target(_body_dict(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/alerts/delivery-targets/{target_id}/toggle")
+def admin_toggle_alert_delivery_target(target_id: str, body: AlertDeliveryToggleBody) -> Dict[str, Any]:
+    """Enable or disable one alert delivery target."""
+    target = workbench.set_alert_delivery_target_enabled(target_id, body.enabled)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"Alert delivery target not found: {target_id}")
+    return target
+
+
+@router.post("/alerts/delivery-targets/{target_id}/test")
+def admin_test_alert_delivery_target(target_id: str) -> Dict[str, Any]:
+    """Send a synthetic test alert through one delivery target."""
+    delivery = workbench.test_alert_delivery_target(target_id)
+    if delivery is None:
+        raise HTTPException(status_code=404, detail=f"Alert delivery target not found: {target_id}")
+    return delivery
+
+
+@router.get("/alerts/deliveries")
+def admin_alert_deliveries(
+    alert_id: Optional[str] = None,
+    target_id: Optional[str] = None,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Return external alert delivery attempts."""
+    return workbench.list_alert_deliveries(alert_id=alert_id, target_id=target_id, limit=limit)
+
+
+@router.post("/alerts/{alert_id}/ack")
+def admin_ack_alert(alert_id: str) -> Dict[str, Any]:
+    """Acknowledge an in-app alert."""
+    alert = workbench.acknowledge_alert(alert_id)
+    if alert is None:
+        raise HTTPException(status_code=404, detail=f"Alert not found: {alert_id}")
+    return alert
+
+
+@router.get("/jobs")
+def admin_jobs() -> List[Dict[str, Any]]:
+    """Return saved job definitions."""
+    return workbench.list_jobs()
+
+
+@router.post("/jobs")
+def admin_create_job(body: JobBody) -> Dict[str, Any]:
+    """Create a persisted job definition."""
+    try:
+        return workbench.create_job(_body_dict(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/jobs/{job_id}/run")
+def admin_run_job(job_id: str) -> Dict[str, Any]:
+    """Run a saved job immediately."""
+    job = workbench.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return _run_job(job, trigger="manual", raise_on_failure=True)
+
+
+def _run_job(
+    job: Dict[str, Any],
+    trigger: str,
+    raise_on_failure: bool,
+    execution_time: Optional[float] = None,
+) -> Dict[str, Any]:
+    start = time.time() if execution_time is None else float(execution_time)
+    try:
+        details = _execute_job(job)
+        status = details.pop("status", "succeeded")
+        details["trigger"] = trigger
+        run = workbench.record_run(
+            job["kind"],
+            status=status,
+            league_id=details.get("league_id"),
+            job_id=job["id"],
+            target=job.get("target") or {},
+            details=details,
+            started_at=start,
+            finished_at=execution_time,
+        )
+    except HTTPException as exc:
+        details = {"trigger": trigger}
+        run = workbench.record_run(
+            job["kind"],
+            status="failed",
+            job_id=job["id"],
+            target=job.get("target") or {},
+            message=str(exc.detail),
+            details=details,
+            started_at=start,
+            finished_at=execution_time,
+        )
+        workbench.create_alert(
+            title=f"Job failed: {job['name']}",
+            message=str(exc.detail),
+            severity="error",
+            run_id=run["id"],
+        )
+        workbench.mark_job_run(job["id"], run)
+        if raise_on_failure:
+            raise
+        return {"job": workbench.get_job(job["id"]), "run": run, "details": details, "error": str(exc.detail)}
+    workbench.mark_job_run(job["id"], run)
+    return {"job": workbench.get_job(job["id"]), "run": run, "details": details}
+
+
+@router.get("/scheduler/status")
+def admin_scheduler_status(now: Optional[float] = None) -> Dict[str, Any]:
+    """Return due-job status for the local scheduler."""
+    return workbench.scheduler_status(now)
+
+
+@router.post("/scheduler/run-due")
+def admin_scheduler_run_due(limit: int = 20, now: Optional[float] = None) -> Dict[str, Any]:
+    """Run enabled jobs whose next_run_at is due."""
+    return run_due_jobs_once(limit=limit, now=now, trigger="scheduler")
+
+
+def run_due_jobs_once(
+    limit: int = 20,
+    now: Optional[float] = None,
+    trigger: str = "scheduler",
+) -> Dict[str, Any]:
+    current = time.time() if now is None else float(now)
+    due_jobs = workbench.list_due_jobs(current)
+    executed = []
+    for job in due_jobs[: max(0, limit)]:
+        executed.append(
+            _run_job(
+                job,
+                trigger=trigger,
+                raise_on_failure=False,
+                execution_time=current,
+            )
+        )
+    return {
+        "now": current,
+        "due_count": len(due_jobs),
+        "executed_count": len(executed),
+        "remaining_due_count": max(0, len(due_jobs) - len(executed)),
+        "executed": executed,
+        "status": workbench.scheduler_status(current),
+    }
+
+
+def _execute_job(job: Dict[str, Any]) -> Dict[str, Any]:
+    kind = str(job.get("kind") or "")
+    target = job.get("target") or {}
+    if kind in {"broad", "broad_ingest"}:
+        adapter = get_adapter("nfl_sleeper")
+        if adapter is None:
+            raise HTTPException(status_code=503, detail="nfl_sleeper adapter not registered")
+        adapter.ingest_to_bronze()
+        return {"status": "succeeded", "source_id": "nfl_sleeper"}
+    if kind in {"league", "league_ingest"}:
+        league_id = str(target.get("league_id") or "")
+        if not league_id:
+            raise HTTPException(status_code=400, detail="league_id target is required")
+        gold_league.ensure_league_ingested(league_id)
+        return {"status": "succeeded", "league_id": league_id}
+    if kind == "quality_check":
+        table_id = str(target.get("table_id") or "")
+        if not table_id:
+            raise HTTPException(status_code=400, detail="table_id target is required")
+        results = workbench.run_quality_rules(table_id, _rows_for_table_id)
+        status = "failed" if any(r["status"] in {"failed", "error"} for r in results) else "succeeded"
+        return {"status": status, "table_id": table_id, "result_count": len(results)}
+    if kind == "model_preview":
+        model_id = str(target.get("model_id") or "")
+        if not model_id:
+            raise HTTPException(status_code=400, detail="model_id target is required")
+        preview = workbench.preview_model(model_id, _rows_for_table_id, limit=20)
+        return {"status": "succeeded", "model_id": model_id, "row_count": preview["row_count"]}
+    if kind == "model_materialize":
+        model_id = str(target.get("model_id") or "")
+        if not model_id:
+            raise HTTPException(status_code=400, detail="model_id target is required")
+        try:
+            result = workbench.materialize_model(
+                model_id,
+                _rows_for_table_id,
+                record_run_history=False,
+            )
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+        return {
+            "status": "succeeded",
+            "model_id": model_id,
+            "table_id": result["table_id"],
+            "row_count": result["row_count"],
+        }
+    if kind == "source_ingest":
+        source_id = str(target.get("source_id") or "")
+        if not source_id:
+            raise HTTPException(status_code=400, detail="source_id target is required")
+        try:
+            result = workbench.ingest_source_by_id(source_id, record_run_history=False)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"Source not found: {source_id}")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {
+            "status": "succeeded",
+            "source_id": source_id,
+            "table_id": result["table_id"],
+            "row_count": result["row_count"],
+        }
+    raise HTTPException(status_code=400, detail=f"Unknown job kind: {kind}")
+
+
+@router.get("/models/operations")
+def admin_model_operations() -> List[Dict[str, Any]]:
+    """Return supported low-code modeling operations."""
+    return workbench.model_operation_templates()
+
+
+@router.get("/models")
+def admin_models() -> List[Dict[str, Any]]:
+    """Return saved low-code model definitions."""
+    return workbench.list_models()
+
+
+@router.post("/models")
+def admin_create_model(body: ModelBody) -> Dict[str, Any]:
+    """Create a saved low-code model definition."""
+    try:
+        return workbench.create_model(_body_dict(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/models/{model_id}/preview")
+def admin_preview_model(model_id: str) -> Dict[str, Any]:
+    """Preview a low-code model by applying its JSON operations in-memory."""
+    try:
+        return workbench.preview_model(model_id, _rows_for_table_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/models/{model_id}/materialize")
+def admin_materialize_model(model_id: str) -> Dict[str, Any]:
+    """Run a low-code model and overwrite its durable model table."""
+    try:
+        return workbench.materialize_model(model_id, _rows_for_table_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Model not found: {model_id}")
+    except ValueError as exc:
+        run = workbench.record_run(
+            "model_materialize",
+            status="failed",
+            target={"model_id": model_id},
+            message=str(exc),
+        )
+        workbench.create_alert(
+            title="Model materialization failed",
+            message=str(exc),
+            severity="error",
+            run_id=run["id"],
+        )
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/storage")
+def admin_storage() -> Dict[str, Any]:
+    """Return local storage allocation details."""
+    return workbench.data_root_info()
+
+
+@router.get("/diagnostics")
+def admin_diagnostics(now: Optional[float] = None) -> Dict[str, Any]:
+    """Return runtime health and diagnostics for storage, metadata, adapters, and scheduler."""
+    return workbench.runtime_diagnostics(now=now)
+
+
+@router.post("/storage/retention/preview")
+def admin_storage_retention_preview(body: StorageRetentionBody) -> Dict[str, Any]:
+    """Preview files matched by a retention policy without deleting them."""
+    try:
+        return workbench.preview_storage_cleanup(_body_dict(body))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/storage/cleanup")
+def admin_storage_cleanup(body: StorageRetentionBody) -> Dict[str, Any]:
+    """Delete Foundry-owned files matched by a confirmed retention policy."""
+    payload = _body_dict(body)
+    if not payload.get("confirm"):
+        raise HTTPException(status_code=400, detail="Cleanup requires confirm=true")
+    try:
+        return workbench.apply_storage_cleanup(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/export")
+def admin_export_bundle(include_history: bool = False) -> Dict[str, Any]:
+    """Export portable workbench metadata as a JSON bundle."""
+    return workbench.export_bundle(include_history=include_history)
+
+
+@router.post("/import")
+def admin_import_bundle(body: WorkbenchImportBody) -> Dict[str, Any]:
+    """Import a portable workbench metadata JSON bundle."""
+    payload = _body_dict(body)
+    try:
+        return workbench.import_bundle(payload["bundle"], mode=payload.get("mode", "merge"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 _ADMIN_UI_ROOT = Path(__file__).resolve().parent / "admin_ui"
 
 
 @router.get("", include_in_schema=False)
 @router.get("/", include_in_schema=False)
-def admin_ui_index():
+def admin_ui_index(request: Request):
     """Serve admin UI at GET /admin and GET /admin/."""
     index = _ADMIN_UI_ROOT / "index.html"
     if not index.is_file():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Admin UI not found")
-    return FileResponse(index, media_type="text/html")
+    response = FileResponse(index, media_type="text/html")
+    expected = get_admin_api_key()
+    provided = request.query_params.get("admin_key")
+    if expected is not None and provided == expected:
+        response.set_cookie(
+            _ADMIN_AUTH_COOKIE,
+            provided,
+            httponly=True,
+            samesite="lax",
+        )
+    return response

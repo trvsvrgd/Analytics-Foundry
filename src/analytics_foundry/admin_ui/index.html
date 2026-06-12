@@ -3,364 +3,2167 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Foundry Admin</title>
+  <title>Foundry Admin Workbench</title>
   <style>
     :root {
-      --bg: #0f1419;
-      --surface: #1a2332;
-      --border: #2d3a4d;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --accent: #58a6ff;
-      --success: #3fb950;
-      --danger: #f85149;
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --surface-2: #eef2f5;
+      --border: #d6dce3;
+      --border-strong: #aeb8c4;
+      --text: #17202a;
+      --muted: #657282;
+      --accent: #2563eb;
+      --accent-ink: #ffffff;
+      --success: #15803d;
+      --warning: #a16207;
+      --danger: #b91c1c;
+      --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
     }
+
     * { box-sizing: border-box; }
+
     body {
-      font-family: ui-sans-serif, system-ui, sans-serif;
+      margin: 0;
       background: var(--bg);
       color: var(--text);
-      margin: 0;
-      padding: 1.5rem;
-      line-height: 1.5;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
     }
-    h1 { font-size: 1.5rem; margin: 0 0 1.5rem; color: var(--text); }
-    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; color: var(--muted); }
-    section {
+
+    .shell {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    h1, h2, h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 { font-size: 24px; font-weight: 700; }
+    h2 { font-size: 18px; font-weight: 650; }
+    h3 { font-size: 15px; font-weight: 650; }
+
+    .top-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    nav {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    nav button {
+      flex: 0 0 auto;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    nav button.active {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+
+    .panel {
+      grid-column: span 12;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 1rem 1.25rem;
-      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+      padding: 14px;
     }
-    input[type="text"] {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      padding: 0.5rem 0.75rem;
-      border-radius: 6px;
+
+    .panel.compact { padding: 10px; }
+    .span-4 { grid-column: span 4; }
+    .span-5 { grid-column: span 5; }
+    .span-6 { grid-column: span 6; }
+    .span-7 { grid-column: span 7; }
+    .span-8 { grid-column: span 8; }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      text-transform: uppercase;
+    }
+
+    input, select, textarea {
       width: 100%;
-      max-width: 20rem;
-    }
-    button {
-      background: var(--accent);
-      color: var(--bg);
-      border: none;
-      padding: 0.5rem 1rem;
+      min-height: 36px;
+      border: 1px solid var(--border-strong);
       border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-      margin-right: 0.5rem;
-      margin-top: 0.5rem;
+      padding: 7px 9px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      text-transform: none;
     }
-    button:hover { opacity: 0.9; }
-    button.secondary {
+
+    textarea {
+      min-height: 78px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+    }
+
+    button {
+      min-height: 36px;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 0 12px;
       background: var(--surface);
-      color: var(--accent);
-      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 650;
     }
-    button.danger { background: var(--danger); color: #fff; }
-    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-    .status { font-size: 0.9rem; color: var(--muted); margin-top: 0.5rem; }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    button.danger {
+      border-color: var(--danger);
+      background: var(--danger);
+      color: #fff;
+    }
+
+    button.link {
+      min-height: 0;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
     .status.ok { color: var(--success); }
     .status.err { color: var(--danger); }
+
+    .asset-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .asset-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 52px;
+      padding: 9px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .asset-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 650;
+    }
+
+    .asset-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric {
+      display: grid;
+      gap: 4px;
+      min-height: 72px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: var(--surface-2);
+    }
+
+    .metric strong {
+      font-size: 19px;
+      line-height: 1.1;
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.4fr);
+      gap: 14px;
+    }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.85rem;
+      font-size: 13px;
     }
+
     th, td {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 9px;
       text-align: left;
-      padding: 0.5rem 0.75rem;
-      border-bottom: 1px solid var(--border);
+      vertical-align: top;
     }
-    th { color: var(--muted); font-weight: 500; }
-    pre {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 1rem;
+
+    th {
+      color: var(--muted);
+      font-weight: 700;
+      background: #fafbfc;
+    }
+
+    .scroll {
+      max-height: 440px;
       overflow: auto;
-      font-size: 0.8rem;
-      max-height: 20rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-top: 12px;
     }
-    .table-list { list-style: none; padding: 0; margin: 0; }
-    .table-list li {
-      display: flex;
+
+    pre {
+      min-height: 160px;
+      max-height: 420px;
+      overflow: auto;
+      margin: 12px 0 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #111827;
+      color: #e5e7eb;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .empty {
+      min-height: 90px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--border-strong);
+      border-radius: 8px;
+      color: var(--muted);
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    .tag {
+      display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.4rem 0;
-      border-bottom: 1px solid var(--border);
+      min-height: 22px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
     }
-    .table-list li:last-child { border-bottom: none; }
-    .table-list a { color: var(--accent); cursor: pointer; }
-    .table-list a:hover { text-decoration: underline; }
-    .badge { font-size: 0.75rem; color: var(--muted); }
-    .panel { margin-top: 0.75rem; }
-    .hidden { display: none; }
+
+    .tag.success { color: var(--success); border-color: rgba(21, 128, 61, 0.25); }
+    .tag.warning { color: var(--warning); border-color: rgba(161, 98, 7, 0.25); }
+    .tag.danger { color: var(--danger); border-color: rgba(185, 28, 28, 0.25); }
+
+    .ops {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .op-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .hidden { display: none !important; }
+
+    @media (max-width: 980px) {
+      .span-4, .span-5, .span-6, .span-7, .span-8 { grid-column: span 12; }
+      .split { grid-template-columns: 1fr; }
+      header { align-items: flex-start; flex-direction: column; }
+      .top-status { justify-content: flex-start; }
+    }
   </style>
 </head>
 <body>
-  <h1>Foundry Admin</h1>
-
-  <section>
-    <h2>League &amp; Ingest</h2>
-    <p class="badge">Default league: <span id="defaultLeagueId">—</span></p>
-    <div class="row">
-      <input type="text" id="leagueId" placeholder="League ID (single)" />
-      <button onclick="validateLeague()">Validate</button>
-      <button onclick="syncLeague()">Sync this league</button>
-    </div>
-    <div style="margin-top: 0.75rem;">
-      <label for="leagueIds">League IDs (one per line or comma-separated):</label>
-      <textarea id="leagueIds" rows="3" placeholder="1261894762944802816&#10;or: id1, id2, id3" style="width: 100%; max-width: 30rem; margin-top: 0.25rem; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 0.5rem 0.75rem; border-radius: 6px; font-family: inherit;"></textarea>
-      <div class="row" style="margin-top: 0.5rem;">
-        <button onclick="syncAllLeagues()">Sync all leagues</button>
-        <button class="secondary" onclick="syncBroad()">Sync broad NFL</button>
+  <div class="shell">
+    <header>
+      <div>
+        <h1>Analytics Foundry</h1>
+        <div class="asset-meta">
+          <span>Low-code ETL workbench</span>
+          <span id="defaultLeagueBadge">Default league: loading</span>
+        </div>
       </div>
-    </div>
-    <div id="leagueStatus" class="status"></div>
-  </section>
+      <div class="top-status">
+        <span class="pill" id="tableCount">0 tables</span>
+        <span class="pill" id="alertCount">0 alerts</span>
+        <span class="pill" id="storageSize">0 B</span>
+      </div>
+    </header>
 
-  <section>
-    <h2>Medallion tables</h2>
-    <button class="secondary" onclick="loadTables()">Refresh</button>
-    <div id="tablesList" class="panel">Click Refresh to load.</div>
-    <div id="samplePanel" class="panel hidden">
-      <h3 id="sampleTitle"></h3>
-      <pre id="sampleData"></pre>
-    </div>
-  </section>
+    <nav aria-label="Workbench views">
+      <button class="active" data-view="ingest">Ingest</button>
+      <button data-view="tables">Tables</button>
+      <button data-view="models">Models</button>
+      <button data-view="quality">Quality</button>
+      <button data-view="jobs">Jobs</button>
+      <button data-view="alerts">Alerts</button>
+      <button data-view="storage">Storage</button>
+      <button data-view="sql">SQL</button>
+    </nav>
 
-  <section>
-    <h2>Transformations</h2>
-    <button class="secondary" onclick="loadTransformations()">Refresh</button>
-    <div id="transformList" class="panel">Click Refresh to load.</div>
-    <div id="sqlPanel" class="panel hidden">
-      <h3 id="sqlTitle"></h3>
-      <pre id="sqlContent"></pre>
-    </div>
-  </section>
+    <main>
+      <section id="view-ingest" class="view active">
+        <div class="grid">
+          <div class="panel span-6">
+            <h2>League Ingest</h2>
+            <div class="form-grid">
+              <label class="span-8">League ID
+                <input id="leagueId" type="text" />
+              </label>
+              <div class="span-4 toolbar">
+                <button onclick="validateLeague()">Validate</button>
+                <button class="primary" onclick="syncLeague()">Sync</button>
+              </div>
+            </div>
+            <div id="leagueStatus" class="status"></div>
+          </div>
 
-  <section>
-    <h2>Job runs</h2>
-    <button class="secondary" onclick="loadRuns()">Refresh</button>
-    <div id="runsList" class="panel">No runs yet.</div>
-  </section>
+          <div class="panel span-6">
+            <h2>Batch Ingest</h2>
+            <div class="form-grid">
+              <label class="span-12">League IDs
+                <textarea id="leagueIds"></textarea>
+              </label>
+            </div>
+            <div class="toolbar">
+              <button class="primary" onclick="syncAllLeagues()">Sync leagues</button>
+              <button onclick="syncBroad()">Sync broad NFL</button>
+            </div>
+            <div id="batchStatus" class="status"></div>
+          </div>
+
+          <div class="panel span-8">
+            <h2>Source Onboarding</h2>
+            <div class="form-grid">
+              <label class="span-4">Connector
+                <select id="sourceConnector" onchange="renderSourceConnector()">
+                  <option value="file">Local file</option>
+                  <option value="api">Public JSON API</option>
+                </select>
+              </label>
+              <label class="span-4">Dataset name
+                <input id="sourceName" type="text" value="My dataset" />
+              </label>
+              <label class="span-4">Bronze table
+                <input id="sourceTableName" type="text" placeholder="records" />
+              </label>
+              <div id="sourceConnectorFields" class="span-12 form-grid"></div>
+            </div>
+            <div class="toolbar">
+              <button onclick="previewSource()">Preview</button>
+              <button class="primary" onclick="ingestSource()">Ingest to bronze</button>
+            </div>
+            <div id="sourceStatus" class="status"></div>
+            <pre id="sourcePreview">Preview rows before ingest.</pre>
+          </div>
+
+          <div class="panel span-4">
+            <h2>Saved Sources</h2>
+            <div class="toolbar">
+              <button onclick="refreshSources()">Refresh</button>
+            </div>
+            <div id="sourcesList" class="asset-list"></div>
+          </div>
+
+          <div class="panel">
+            <h2>Latest Runs</h2>
+            <div id="recentRuns" class="asset-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-tables" class="view">
+        <div class="split">
+          <div class="panel">
+            <h2>Tables</h2>
+            <div class="toolbar">
+              <button onclick="refreshTables()">Refresh</button>
+            </div>
+            <div id="tablesList" class="asset-list"></div>
+          </div>
+          <div class="panel">
+            <h2 id="tableDetailTitle">Table Profile</h2>
+            <div id="tableMetrics" class="grid"></div>
+            <div id="lineageBlock" class="asset-list"></div>
+            <div class="scroll">
+              <table>
+                <thead><tr><th>Column</th><th>Types</th><th>Non-null</th><th>Example</th></tr></thead>
+                <tbody id="schemaBody"></tbody>
+              </table>
+            </div>
+            <pre id="sampleRows">Select a table.</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-models" class="view">
+        <div class="grid">
+          <div class="panel span-5">
+            <h2>Model Builder</h2>
+            <div class="form-grid">
+              <label class="span-12">Model name
+                <input id="modelName" type="text" value="My model" />
+              </label>
+              <label class="span-12">Source table
+                <select id="modelSource"></select>
+              </label>
+              <label class="span-6">Operation
+                <select id="opType" onchange="renderOperationFields()">
+                  <option value="filter">Filter</option>
+                  <option value="select">Choose columns</option>
+                  <option value="rename">Rename</option>
+                  <option value="cast">Change type</option>
+                  <option value="deduplicate">Deduplicate</option>
+                  <option value="calculate">Calculate</option>
+                  <option value="group">Group</option>
+                  <option value="join">Join</option>
+                  <option value="union">Union</option>
+                </select>
+              </label>
+              <div id="operationFields" class="span-12 form-grid"></div>
+            </div>
+            <div class="toolbar">
+              <button onclick="addOperation()">Add operation</button>
+              <button onclick="clearOperations()">Clear</button>
+              <button class="primary" onclick="createModel()">Save model</button>
+            </div>
+            <div id="modelStatus" class="status"></div>
+            <div id="modelOps" class="ops"></div>
+          </div>
+
+          <div class="panel span-7">
+            <h2>Models</h2>
+            <div class="toolbar">
+              <button onclick="refreshModels()">Refresh</button>
+            </div>
+            <div id="modelsList" class="asset-list"></div>
+            <pre id="modelPreview">Select Preview on a model.</pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-quality" class="view">
+        <div class="grid">
+          <div class="panel span-5">
+            <h2>Rule Builder</h2>
+            <div class="form-grid">
+              <label class="span-12">Table
+                <select id="qualityTable" onchange="loadQualityContext()"></select>
+              </label>
+              <label class="span-6">Rule
+                <select id="ruleType" onchange="renderRuleFields()"></select>
+              </label>
+              <label class="span-6">Column
+                <select id="ruleColumn" onchange="renderRuleFields()"></select>
+              </label>
+              <label class="span-12">Name
+                <input id="ruleName" type="text" />
+              </label>
+              <div id="qualityColumnProfile" class="span-12 asset-list"></div>
+              <div id="ruleFields" class="span-12 form-grid"></div>
+            </div>
+            <div class="toolbar">
+              <button class="primary" onclick="createQualityRule()">Save rule</button>
+              <button onclick="runQuality()">Run checks</button>
+            </div>
+            <div id="qualityStatus" class="status"></div>
+          </div>
+
+          <div class="panel span-7">
+            <h2>Rules & Results</h2>
+            <div class="toolbar">
+              <button onclick="refreshQuality()">Refresh</button>
+            </div>
+            <div id="rulesList" class="asset-list"></div>
+            <div id="qualityResults" class="asset-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-jobs" class="view">
+        <div class="grid">
+          <div class="panel span-5">
+            <h2>Job Builder</h2>
+            <div class="form-grid">
+              <label class="span-12">Name
+                <input id="jobName" type="text" value="Daily quality check" />
+              </label>
+              <label class="span-6">Kind
+                <select id="jobKind" onchange="renderJobTarget()">
+                  <option value="quality_check">Quality check</option>
+                  <option value="source_ingest">Source ingest</option>
+                  <option value="league_ingest">League ingest</option>
+                  <option value="broad_ingest">Broad ingest</option>
+                  <option value="model_preview">Model preview</option>
+                  <option value="model_materialize">Model materialize</option>
+                </select>
+              </label>
+              <label class="span-6">Schedule
+                <select id="jobSchedule" onchange="renderScheduleFields()">
+                  <option value="manual">Manual</option>
+                  <option value="interval">Interval</option>
+                  <option value="hourly">Hourly</option>
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="cron">Cron</option>
+                </select>
+              </label>
+              <div id="jobScheduleFields" class="span-12 form-grid"></div>
+              <label class="span-6">Retry count
+                <input id="jobRetryCount" type="number" min="0" value="0" />
+              </label>
+              <label class="span-6">Retry delay seconds
+                <input id="jobRetryDelay" type="number" min="1" value="60" />
+              </label>
+              <div id="jobTargetFields" class="span-12 form-grid"></div>
+            </div>
+            <div class="toolbar">
+              <button class="primary" onclick="createJob()">Save job</button>
+            </div>
+            <div id="jobStatus" class="status"></div>
+          </div>
+
+          <div class="panel span-7">
+            <h2>Jobs</h2>
+            <div class="toolbar">
+              <button onclick="refreshJobs()">Refresh</button>
+            </div>
+            <div id="jobsList" class="asset-list"></div>
+          </div>
+
+          <div class="panel span-12">
+            <h2>Scheduler</h2>
+            <div id="schedulerStatus" class="grid"></div>
+            <div class="toolbar">
+              <button onclick="refreshScheduler()">Refresh</button>
+              <button class="primary" onclick="runDueJobs()">Run due jobs</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-alerts" class="view">
+        <div class="grid">
+          <div class="panel span-7">
+            <h2>Alerts</h2>
+            <div class="toolbar">
+              <button onclick="refreshAlertCenter()">Refresh</button>
+            </div>
+            <div id="alertsList" class="asset-list"></div>
+          </div>
+
+          <div class="panel span-5">
+            <h2>Delivery Targets</h2>
+            <div class="form-grid">
+              <label class="span-6">Name
+                <input id="alertTargetName" type="text" value="Ops webhook" />
+              </label>
+              <label class="span-6">Kind
+                <select id="alertTargetKind">
+                  <option value="webhook">Webhook</option>
+                  <option value="slack_webhook">Slack-style webhook</option>
+                </select>
+              </label>
+              <label class="span-12">URL
+                <input id="alertTargetUrl" type="url" placeholder="https://hooks.example.test/foundry" />
+              </label>
+              <label class="span-12">Severities
+                <input id="alertTargetSeverities" type="text" value="warning,error" />
+              </label>
+            </div>
+            <div class="toolbar">
+              <button class="primary" onclick="createAlertDeliveryTarget()">Save target</button>
+              <button onclick="refreshAlertDeliveryTargets()">Refresh</button>
+            </div>
+            <div id="alertTargetStatus" class="status"></div>
+            <div id="alertDeliveryTargetsList" class="asset-list"></div>
+          </div>
+
+          <div class="panel span-12">
+            <h2>Delivery History</h2>
+            <div class="toolbar">
+              <button onclick="refreshAlertDeliveries()">Refresh</button>
+            </div>
+            <div id="alertDeliveryLog" class="asset-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-storage" class="view">
+        <div class="grid">
+          <div class="panel span-12">
+            <h2>Runtime Diagnostics</h2>
+            <div class="toolbar">
+              <button onclick="refreshDiagnostics()">Refresh diagnostics</button>
+            </div>
+            <div id="diagnosticMetrics" class="grid"></div>
+            <pre id="diagnosticDetails"></pre>
+          </div>
+          <div class="panel span-8">
+            <h2>Local Storage</h2>
+            <div id="storageMetrics" class="grid"></div>
+            <div id="storageFiles" class="asset-list"></div>
+          </div>
+          <div class="panel span-4">
+            <h2>Paths</h2>
+            <pre id="storagePaths"></pre>
+          </div>
+          <div class="panel span-12">
+            <h2>Retention & Cleanup</h2>
+            <div class="form-grid">
+              <label class="span-4">Scope
+                <select id="storageCleanupScope">
+                  <option value="all">All data outputs</option>
+                  <option value="bronze">Bronze tables</option>
+                  <option value="models">Model outputs</option>
+                  <option value="run_history">Run history</option>
+                </select>
+              </label>
+              <label class="span-4">Older than days
+                <input id="storageRetentionDays" type="number" min="0" value="30" />
+              </label>
+              <label class="span-4">Table or file target
+                <input id="storageRetentionTarget" type="text" placeholder="optional stable table id" />
+              </label>
+            </div>
+            <div class="toolbar">
+              <button onclick="previewStorageCleanup()">Preview cleanup</button>
+              <button class="danger" onclick="applyStorageCleanup()">Apply cleanup</button>
+            </div>
+            <div id="storageCleanupStatus" class="status"></div>
+            <div id="storageCleanupPreview" class="asset-list"></div>
+          </div>
+          <div class="panel span-12">
+            <h2>Metadata Portability</h2>
+            <div class="form-grid">
+              <label class="span-4">Import mode
+                <select id="metadataImportMode">
+                  <option value="merge">Merge</option>
+                  <option value="replace">Replace matched collections</option>
+                </select>
+              </label>
+              <label class="span-4">History
+                <select id="metadataIncludeHistory">
+                  <option value="false">Definitions and alerts only</option>
+                  <option value="true">Include run/result history</option>
+                </select>
+              </label>
+              <label class="span-12">Bundle JSON
+                <textarea id="metadataBundle" placeholder="Exported Analytics Foundry metadata bundle"></textarea>
+              </label>
+            </div>
+            <div class="toolbar">
+              <button onclick="exportMetadataBundle()">Export metadata</button>
+              <button class="primary" onclick="importMetadataBundle()">Import metadata</button>
+            </div>
+            <div id="metadataBundleStatus" class="status"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-sql" class="view">
+        <div class="grid">
+          <div class="panel span-5">
+            <h2>SQL Artifacts</h2>
+            <div class="toolbar">
+              <button onclick="loadTransformations()">Refresh</button>
+            </div>
+            <div id="transformList" class="asset-list"></div>
+          </div>
+          <div class="panel span-7">
+            <h2 id="sqlTitle">SQL</h2>
+            <pre id="sqlContent">Select an artifact.</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script>
-    const base = window.location.pathname.replace(/\/?$/, ''); // e.g. /admin
+    const base = window.location.pathname.replace(/\/?$/, '');
+    const state = {
+      tables: [],
+      models: [],
+      jobs: [],
+      alerts: [],
+      alertDeliveryTargets: [],
+      alertDeliveries: [],
+      scheduler: null,
+      diagnostics: null,
+      storage: null,
+      storageCleanupPreview: null,
+      sources: [],
+      templates: [],
+      qualityContext: null,
+      modelOps: [],
+      sourcePreview: null,
+      sourceFileContent: null,
+      sourceFileName: null,
+      selectedTableId: null
+    };
 
-    async function loadConfig() {
-      try {
-        const r = await fetch(base + '/config');
-        const d = await r.json();
-        const def = d.default_league_id || '';
-        document.getElementById('defaultLeagueId').textContent = def || '—';
-        const single = document.getElementById('leagueId');
-        if (!single.value.trim()) single.placeholder = 'League ID (default: ' + (def || '—') + ')';
-        const multi = document.getElementById('leagueIds');
-        if (!multi.value.trim()) multi.value = def;
-      } catch (e) { document.getElementById('defaultLeagueId').textContent = '—'; }
+    document.querySelectorAll('nav button').forEach(button => {
+      button.addEventListener('click', () => showView(button.dataset.view));
+    });
+
+    function clearAdminKeyFromUrl() {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('admin_key')) return;
+      url.searchParams.delete('admin_key');
+      window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
     }
 
-    function setStatus(elId, text, ok) {
-      const el = document.getElementById(elId);
-      el.textContent = text;
+    function showView(name) {
+      document.querySelectorAll('nav button').forEach(button => {
+        button.classList.toggle('active', button.dataset.view === name);
+      });
+      document.querySelectorAll('.view').forEach(view => {
+        view.classList.toggle('active', view.id === 'view-' + name);
+      });
+      if (name === 'ingest') refreshSources();
+      if (name === 'tables') refreshTables();
+      if (name === 'models') refreshModels();
+      if (name === 'quality') refreshQuality();
+      if (name === 'jobs') {
+        refreshJobs();
+        refreshScheduler();
+      }
+      if (name === 'alerts') refreshAlertCenter();
+      if (name === 'storage') {
+        refreshDiagnostics();
+        refreshStorage();
+      }
+      if (name === 'sql') loadTransformations();
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch(base + path, options);
+      const text = await response.text();
+      let data = null;
+      try { data = text ? JSON.parse(text) : null; } catch (_) { data = text; }
+      if (!response.ok) {
+        const detail = data && data.detail ? data.detail : response.statusText;
+        throw new Error(detail);
+      }
+      return data;
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function formatBytes(bytes) {
+      const units = ['B', 'KB', 'MB', 'GB'];
+      let value = Number(bytes || 0);
+      let unit = 0;
+      while (value >= 1024 && unit < units.length - 1) {
+        value = value / 1024;
+        unit += 1;
+      }
+      return (unit === 0 ? value : value.toFixed(1)) + ' ' + units[unit];
+    }
+
+    function formatTimestamp(seconds) {
+      if (seconds == null) return 'none';
+      return new Date(Number(seconds) * 1000).toISOString();
+    }
+
+    function setStatus(id, message, ok) {
+      const el = document.getElementById(id);
+      el.textContent = message || '';
       el.className = 'status ' + (ok === true ? 'ok' : ok === false ? 'err' : '');
     }
 
-    async function validateLeague() {
-      let id = document.getElementById('leagueId').value.trim();
-      if (!id) {
-        try {
-          const r = await fetch(base + '/config');
-          const d = await r.json();
-          id = d.default_league_id || '';
-        } catch (_) {}
-      }
-      if (!id) { setStatus('leagueStatus', 'Enter a league ID.', false); return; }
-      setStatus('leagueStatus', 'Validating…');
+    function scrubAdminKeyFromUrl() {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('admin_key')) return;
+      url.searchParams.delete('admin_key');
+      const clean = url.pathname + (url.search ? url.search : '') + url.hash;
+      window.history.replaceState({}, document.title, clean);
+    }
+
+    function tableLabel(table) {
+      if (!table) return '';
+      return table.layer === 'bronze'
+        ? `${table.source_id}.${table.name}`
+        : `${table.layer}.${table.name}`;
+    }
+
+    function flattenTables(data) {
+      const tables = [];
+      ['bronze', 'silver', 'gold', 'models'].forEach(layer => {
+        (data[layer] || []).forEach(table => tables.push(table));
+      });
+      return tables;
+    }
+
+    function populateTableSelects() {
+      const options = state.tables.map(table => {
+        return `<option value="${escapeHtml(table.table_id)}">${escapeHtml(table.table_id)}</option>`;
+      }).join('');
+      ['qualityTable', 'modelSource', 'jobTableTarget', 'referentialTable'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          const current = el.value;
+          el.innerHTML = options;
+          if (current && Array.from(el.options).some(option => option.value === current)) {
+            el.value = current;
+          }
+        }
+      });
+    }
+
+    async function loadConfig() {
       try {
-        const r = await fetch(base + '/league/validate?league_id=' + encodeURIComponent(id));
-        const d = await r.json();
-        if (d.valid) setStatus('leagueStatus', 'Valid: ' + (d.league_name || id), true);
-        else setStatus('leagueStatus', 'Invalid league.', false);
-      } catch (e) {
-        setStatus('leagueStatus', 'Error: ' + e.message, false);
+        const config = await api('/config');
+        const leagueId = config.default_league_id || '';
+        document.getElementById('defaultLeagueBadge').textContent = 'Default league: ' + (leagueId || 'none');
+        document.getElementById('leagueId').placeholder = leagueId;
+        document.getElementById('leagueIds').value = leagueId;
+      } catch (err) {
+        document.getElementById('defaultLeagueBadge').textContent = 'Default league: unavailable';
+      }
+    }
+
+    function renderSourceConnector() {
+      const connector = document.getElementById('sourceConnector').value;
+      if (connector === 'api') {
+        document.getElementById('sourceConnectorFields').innerHTML = `
+          <label class="span-8">URL
+            <input id="sourceUrl" type="text" placeholder="https://example.com/data.json" />
+          </label>
+          <label class="span-4">Records path
+            <input id="sourceRecordsPath" type="text" placeholder="data.items" />
+          </label>`;
+        return;
+      }
+      document.getElementById('sourceConnectorFields').innerHTML = `
+        <label class="span-5">Upload file
+          <input id="sourceFile" type="file" onchange="captureSourceFile()" />
+        </label>
+        <label class="span-5">Server file path
+          <input id="sourcePath" type="text" placeholder="C:\\\\path\\\\to\\\\file.csv" />
+        </label>
+        <label class="span-2">Format
+          <select id="sourceFormat">
+            <option value="auto">Auto</option>
+            <option value="csv">CSV</option>
+            <option value="tsv">TSV</option>
+            <option value="json">JSON</option>
+            <option value="jsonl">JSONL</option>
+          </select>
+        </label>`;
+    }
+
+    async function captureSourceFile() {
+      const input = document.getElementById('sourceFile');
+      const file = input && input.files && input.files[0];
+      state.sourceFileContent = null;
+      state.sourceFileName = null;
+      if (!file) return;
+      state.sourceFileName = file.name;
+      setStatus('sourceStatus', 'Reading file...');
+      state.sourceFileContent = await file.text();
+      if (document.getElementById('sourceName').value === 'My dataset') {
+        document.getElementById('sourceName').value = file.name.replace(/\.[^.]+$/, '');
+      }
+      if (!document.getElementById('sourceTableName').value.trim()) {
+        document.getElementById('sourceTableName').value = slugForUi(file.name.replace(/\.[^.]+$/, ''));
+      }
+      setStatus('sourceStatus', 'File ready for preview.', true);
+    }
+
+    function slugForUi(value) {
+      return String(value || 'records').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '') || 'records';
+    }
+
+    function buildSourcePayload() {
+      const connector = document.getElementById('sourceConnector').value;
+      const payload = {
+        connector,
+        name: document.getElementById('sourceName').value,
+        table_name: document.getElementById('sourceTableName').value || undefined
+      };
+      if (connector === 'api') {
+        payload.url = document.getElementById('sourceUrl').value;
+        payload.records_path = document.getElementById('sourceRecordsPath').value || undefined;
+        return payload;
+      }
+      const pathValue = document.getElementById('sourcePath').value.trim();
+      payload.format = document.getElementById('sourceFormat').value;
+      if (state.sourceFileContent != null) {
+        payload.content = state.sourceFileContent;
+        payload.filename = state.sourceFileName;
+      } else if (pathValue) {
+        payload.path = pathValue;
+      }
+      return payload;
+    }
+
+    async function previewSource() {
+      setStatus('sourceStatus', 'Previewing...');
+      try {
+        const data = await api('/sources/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildSourcePayload())
+        });
+        state.sourcePreview = data;
+        document.getElementById('sourcePreview').textContent = JSON.stringify({
+          table_id: data.table_id,
+          row_count: data.row_count,
+          reusable: data.reusable,
+          schema: data.schema,
+          rows: data.preview_rows
+        }, null, 2);
+        setStatus('sourceStatus', 'Preview ready.', true);
+      } catch (err) {
+        setStatus('sourceStatus', err.message, false);
+        document.getElementById('sourcePreview').textContent = err.message;
+      }
+    }
+
+    async function ingestSource() {
+      setStatus('sourceStatus', 'Ingesting...');
+      try {
+        const data = await api('/sources/ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(buildSourcePayload())
+        });
+        setStatus('sourceStatus', `Ingested ${data.row_count} row(s) into ${data.table_id}.`, true);
+        document.getElementById('sourcePreview').textContent = JSON.stringify(data, null, 2);
+        await Promise.all([refreshSources(), refreshTables(), refreshRuns(), refreshStorage()]);
+      } catch (err) {
+        setStatus('sourceStatus', err.message, false);
+        await refreshAlerts();
+      }
+    }
+
+    async function refreshSources() {
+      try {
+        state.sources = await api('/sources');
+        renderSources();
+        renderJobTarget();
+      } catch (err) {
+        document.getElementById('sourcesList').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderSources() {
+      document.getElementById('sourcesList').innerHTML = state.sources.map(source => {
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(source.name)}</div>
+            <div class="asset-meta">
+              <span>${escapeHtml(source.connector)}</span>
+              <span>${escapeHtml(source.table_id)}</span>
+              <span>${Number(source.last_row_count || 0)} rows</span>
+            </div>
+          </div>
+          <span class="tag ${source.reusable ? 'success' : ''}">${source.reusable ? 'reusable' : 'one-shot'}</span>
+        </div>`;
+      }).join('') || '<div class="empty">No saved sources</div>';
+    }
+
+    async function validateLeague() {
+      let leagueId = document.getElementById('leagueId').value.trim();
+      if (!leagueId) leagueId = document.getElementById('leagueId').placeholder || '';
+      if (!leagueId) return setStatus('leagueStatus', 'League ID required.', false);
+      setStatus('leagueStatus', 'Validating...');
+      try {
+        const data = await api('/league/validate?league_id=' + encodeURIComponent(leagueId));
+        setStatus('leagueStatus', data.valid ? 'Valid: ' + (data.league_name || leagueId) : 'Invalid league.', data.valid);
+      } catch (err) {
+        setStatus('leagueStatus', err.message, false);
       }
     }
 
     async function syncLeague() {
-      let id = document.getElementById('leagueId').value.trim();
-      if (!id) {
-        try {
-          const r = await fetch(base + '/config');
-          const d = await r.json();
-          id = d.default_league_id || '';
-        } catch (_) {}
-      }
-      if (!id) { setStatus('leagueStatus', 'Enter a league ID or use Sync all leagues below.', false); return; }
-      setStatus('leagueStatus', 'Syncing…');
+      let leagueId = document.getElementById('leagueId').value.trim();
+      if (!leagueId) leagueId = document.getElementById('leagueId').placeholder || '';
+      if (!leagueId) return setStatus('leagueStatus', 'League ID required.', false);
+      setStatus('leagueStatus', 'Syncing...');
       try {
-        const r = await fetch(base + '/ingest/league', {
+        await api('/ingest/league', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ league_id: id })
+          body: JSON.stringify({ league_id: leagueId })
         });
-        const d = await r.json();
-        if (r.ok) setStatus('leagueStatus', 'Synced: ' + id, true);
-        else setStatus('leagueStatus', d.detail || 'Failed', false);
-        loadRuns();
-      } catch (e) {
-        setStatus('leagueStatus', 'Error: ' + e.message, false);
+        setStatus('leagueStatus', 'Synced ' + leagueId, true);
+        await refreshAfterRun();
+      } catch (err) {
+        setStatus('leagueStatus', err.message, false);
       }
     }
 
     async function syncAllLeagues() {
       const raw = document.getElementById('leagueIds').value.trim();
-      if (!raw) { setStatus('leagueStatus', 'Enter one or more league IDs.', false); return; }
       const ids = raw.replace(/\n/g, ',').split(',').map(s => s.trim()).filter(Boolean);
-      if (ids.length === 0) { setStatus('leagueStatus', 'Enter at least one league ID.', false); return; }
-      setStatus('leagueStatus', 'Syncing ' + ids.length + ' league(s)…');
+      if (!ids.length) return setStatus('batchStatus', 'League ID required.', false);
+      setStatus('batchStatus', 'Syncing...');
       try {
-        const r = await fetch(base + '/ingest/leagues', {
+        await api('/ingest/leagues', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ league_ids: ids })
         });
-        const d = await r.json();
-        if (r.ok) setStatus('leagueStatus', 'Synced: ' + ids.join(', '), true);
-        else setStatus('leagueStatus', d.detail || 'Failed', false);
-        loadRuns();
-      } catch (e) {
-        setStatus('leagueStatus', 'Error: ' + e.message, false);
+        setStatus('batchStatus', 'Synced ' + ids.length + ' league(s).', true);
+        await refreshAfterRun();
+      } catch (err) {
+        setStatus('batchStatus', err.message, false);
       }
     }
 
     async function syncBroad() {
-      setStatus('leagueStatus', 'Syncing broad NFL…');
+      setStatus('batchStatus', 'Syncing...');
       try {
-        const r = await fetch(base + '/ingest/broad', { method: 'POST' });
-        const d = await r.json();
-        if (r.ok) setStatus('leagueStatus', 'Broad sync done.', true);
-        else setStatus('leagueStatus', d.detail || 'Failed', false);
-        loadRuns();
-      } catch (e) {
-        setStatus('leagueStatus', 'Error: ' + e.message, false);
+        await api('/ingest/broad', { method: 'POST' });
+        setStatus('batchStatus', 'Broad NFL sync complete.', true);
+        await refreshAfterRun();
+      } catch (err) {
+        setStatus('batchStatus', err.message, false);
       }
     }
 
-    async function loadTables() {
-      const el = document.getElementById('tablesList');
-      el.innerHTML = 'Loading…';
+    async function refreshAfterRun() {
+      await Promise.all([refreshRuns(), refreshTables(), refreshStorage()]);
+    }
+
+    async function refreshRuns() {
       try {
-        const r = await fetch(base + '/tables');
-        const d = await r.json();
-        let html = '';
-        ['bronze', 'silver', 'gold'].forEach(layer => {
-          const list = d[layer] || [];
-          if (list.length === 0) return;
-          html += '<p class="badge">' + layer + '</p><ul class="table-list">';
-          list.forEach(t => {
-            const label = t.table != null ? t.source_id + ' / ' + t.table : t.name;
-            const count = t.row_count != null ? t.row_count : 'N/A';
-            const path = t.table != null
-              ? base + '/tables/' + layer + '/' + encodeURIComponent(t.source_id) + '/' + encodeURIComponent(t.table)
-              : base + '/tables/' + layer + '/' + encodeURIComponent(t.name);
-            html += '<li><a href="#" data-path="' + path + '">' + label + '</a> <span class="badge">' + count + ' rows</span></li>';
-          });
-          html += '</ul>';
-        });
-        el.innerHTML = html || 'No tables.';
-        el.querySelectorAll('a[data-path]').forEach(a => {
-          a.addEventListener('click', e => { e.preventDefault(); loadSample(a.dataset.path); });
-        });
-      } catch (e) {
-        el.innerHTML = 'Error: ' + e.message;
+        const runs = await api('/runs');
+        const html = runs.slice(0, 10).map(run => {
+          const statusClass = run.status === 'failed' ? 'danger' : run.status === 'succeeded' ? 'success' : 'warning';
+          return `<div class="asset-row">
+            <div>
+              <div class="asset-title">${escapeHtml(run.kind)}</div>
+              <div class="asset-meta">
+                <span>${escapeHtml(run.league_id || run.target && run.target.table_id || run.target && run.target.source_id || '')}</span>
+                <span>${escapeHtml(new Date((run.timestamp || 0) * 1000).toISOString())}</span>
+              </div>
+            </div>
+            <span class="tag ${statusClass}">${escapeHtml(run.status || 'recorded')}</span>
+          </div>`;
+        }).join('');
+        document.getElementById('recentRuns').innerHTML = html || '<div class="empty">No runs</div>';
+      } catch (err) {
+        document.getElementById('recentRuns').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
       }
     }
 
-    async function loadSample(path) {
-      const titleEl = document.getElementById('sampleTitle');
-      const dataEl = document.getElementById('sampleData');
-      const panel = document.getElementById('samplePanel');
-      titleEl.textContent = path;
-      dataEl.textContent = 'Loading…';
-      panel.classList.remove('hidden');
+    async function refreshTables() {
       try {
-        const r = await fetch(path);
-        const d = await r.json();
-        dataEl.textContent = JSON.stringify(d.rows || d, null, 2);
-      } catch (e) {
-        dataEl.textContent = 'Error: ' + e.message;
+        const data = await api('/tables');
+        state.tables = flattenTables(data);
+        document.getElementById('tableCount').textContent = state.tables.length + ' tables';
+        populateTableSelects();
+        renderTables();
+        renderJobTarget();
+        if (state.selectedTableId) selectTable(state.selectedTableId);
+      } catch (err) {
+        document.getElementById('tablesList').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderTables() {
+      const grouped = {};
+      state.tables.forEach(table => {
+        grouped[table.layer] = grouped[table.layer] || [];
+        grouped[table.layer].push(table);
+      });
+      let html = '';
+      Object.keys(grouped).forEach(layer => {
+        html += `<h3>${escapeHtml(layer)}</h3>`;
+        grouped[layer].forEach(table => {
+          html += `<div class="asset-row">
+            <div>
+              <div class="asset-title">${escapeHtml(tableLabel(table))}</div>
+              <div class="asset-meta">
+                <span>${escapeHtml(table.table_id)}</span>
+                <span>${Number(table.row_count || 0)} rows</span>
+                <span>${formatBytes(table.size_bytes || 0)}</span>
+              </div>
+            </div>
+            <button data-table="${escapeHtml(table.table_id)}">Open</button>
+          </div>`;
+        });
+      });
+      document.getElementById('tablesList').innerHTML = html || '<div class="empty">No tables</div>';
+      document.querySelectorAll('[data-table]').forEach(button => {
+        button.addEventListener('click', () => selectTable(button.dataset.table));
+      });
+    }
+
+    async function selectTable(tableId) {
+      state.selectedTableId = tableId;
+      try {
+        const profile = await api('/table-profiles/' + encodeURIComponent(tableId));
+        document.getElementById('tableDetailTitle').textContent = profile.table_id;
+        document.getElementById('tableMetrics').innerHTML = `
+          <div class="metric span-4"><span>Rows</span><strong>${Number(profile.row_count || 0)}</strong></div>
+          <div class="metric span-4"><span>Columns</span><strong>${(profile.schema || []).length}</strong></div>
+          <div class="metric span-4"><span>Storage</span><strong>${formatBytes(profile.size_bytes || 0)}</strong></div>`;
+        document.getElementById('lineageBlock').innerHTML = `
+          <div class="asset-row"><div><div class="asset-title">Upstream</div><div class="asset-meta">${escapeHtml((profile.upstream || []).join(', ') || 'none')}</div></div></div>
+          <div class="asset-row"><div><div class="asset-title">Downstream</div><div class="asset-meta">${escapeHtml((profile.downstream || []).join(', ') || 'none')}</div></div></div>`;
+        document.getElementById('schemaBody').innerHTML = (profile.schema || []).map(col => {
+          return `<tr><td>${escapeHtml(col.name)}</td><td>${escapeHtml((col.types || []).join(', '))}</td><td>${Number(col.non_null_count || 0)}</td><td>${escapeHtml(JSON.stringify(col.example))}</td></tr>`;
+        }).join('');
+        await loadSample(tableId);
+      } catch (err) {
+        document.getElementById('sampleRows').textContent = err.message;
+      }
+    }
+
+    async function loadSample(tableId) {
+      const parsed = parseTableId(tableId);
+      let data;
+      if (parsed.layer === 'bronze') {
+        data = await api('/tables/bronze/' + encodeURIComponent(parsed.source) + '/' + encodeURIComponent(parsed.name));
+      } else if (parsed.layer === 'model') {
+        data = await api('/tables/model/' + encodeURIComponent(parsed.name));
+      } else {
+        data = await api('/tables/' + parsed.layer + '/' + encodeURIComponent(parsed.name));
+      }
+      document.getElementById('sampleRows').textContent = JSON.stringify(data.rows || data, null, 2);
+    }
+
+    function parseTableId(tableId) {
+      const parts = tableId.split(':');
+      const layer = parts[0];
+      const rest = parts.slice(1).join(':');
+      if (layer === 'bronze') {
+        const dot = rest.indexOf('.');
+        return { layer, source: rest.slice(0, dot), name: rest.slice(dot + 1) };
+      }
+      return { layer, name: rest };
+    }
+
+    async function refreshQuality() {
+      await Promise.all([refreshTables(), loadQualityTemplates()]);
+      await loadQualityContext();
+      try {
+        const rules = await api('/quality/rules');
+        const results = await api('/quality/results');
+        renderRules(rules);
+        renderQualityResults(results);
+      } catch (err) {
+        document.getElementById('rulesList').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function loadQualityTemplates() {
+      if (state.templates.length) return;
+      state.templates = await api('/quality/templates');
+      document.getElementById('ruleType').innerHTML = state.templates.map(template => {
+        return `<option value="${escapeHtml(template.type)}">${escapeHtml(template.label)}</option>`;
+      }).join('');
+      renderRuleFields();
+    }
+
+    async function loadQualityContext() {
+      const tableId = document.getElementById('qualityTable').value;
+      if (!tableId) return;
+      try {
+        state.qualityContext = await api('/quality/authoring-context/' + encodeURIComponent(tableId));
+        renderRuleFields();
+      } catch (err) {
+        state.qualityContext = null;
+        document.getElementById('qualityColumnProfile').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderRuleFields() {
+      const type = document.getElementById('ruleType').value;
+      const field = (id, label, typeName = 'text', value = '') => `<label class="span-6">${label}<input id="${id}" type="${typeName}" value="${escapeHtml(value)}" /></label>`;
+      let html = '';
+      const selectedColumn = selectedQualityColumn();
+      if (type === 'accepted_values') {
+        const values = selectedColumn ? (selectedColumn.distinct_values || []).join(',') : '';
+        html = field('paramValues', 'Values', 'text', values);
+      }
+      if (type === 'numeric_range') html = field('paramMin', 'Min', 'number') + field('paramMax', 'Max', 'number');
+      if (type === 'regex') html = field('paramPattern', 'Pattern');
+      if (type === 'freshness') html = field('paramAge', 'Max age seconds', 'number');
+      if (type === 'row_count_drift') {
+        html = field('paramMinCount', 'Min rows', 'number') + field('paramMaxCount', 'Max rows', 'number')
+          + field('paramBaseline', 'Baseline rows', 'number') + field('paramPct', 'Max percent change', 'number');
+      }
+      if (type === 'referential') {
+        html = `<label class="span-6">Reference table<select id="referentialTable" onchange="renderReferenceColumnOptions()"></select></label><label class="span-6">Reference column<select id="referenceColumn"></select></label>`;
+      }
+      document.getElementById('ruleFields').innerHTML = html;
+      renderRuleColumnOptions();
+      renderReferenceTableOptions();
+      renderRuleColumnProfile();
+    }
+
+    function selectedQualityColumn() {
+      const columnName = document.getElementById('ruleColumn')?.value;
+      return (state.qualityContext?.columns || []).find(column => column.name === columnName);
+    }
+
+    function selectedQualityTemplate() {
+      const type = document.getElementById('ruleType')?.value;
+      return (state.qualityContext?.templates || state.templates || []).find(template => template.type === type);
+    }
+
+    function renderRuleColumnOptions() {
+      const el = document.getElementById('ruleColumn');
+      if (!el) return;
+      const current = el.value;
+      const template = selectedQualityTemplate();
+      const columns = state.qualityContext?.columns || [];
+      const compatible = template && template.compatible_columns
+        ? columns.filter(column => template.compatible_columns.includes(column.name))
+        : columns;
+      if (template && template.requires_column === false) {
+        el.disabled = true;
+        el.innerHTML = '<option value="">No column required</option>';
+        return;
+      }
+      el.disabled = false;
+      el.innerHTML = compatible.map(column => {
+        return `<option value="${escapeHtml(column.name)}">${escapeHtml(column.name)} (${escapeHtml(column.quality_kind || 'field')})</option>`;
+      }).join('') || '<option value="">No compatible columns</option>';
+      if (current && compatible.some(column => column.name === current)) el.value = current;
+    }
+
+    function renderRuleColumnProfile() {
+      const column = selectedQualityColumn();
+      const el = document.getElementById('qualityColumnProfile');
+      if (!el) return;
+      if (!column) {
+        el.innerHTML = '<div class="empty">No column required for this rule.</div>';
+        return;
+      }
+      const suggestions = (column.suggested_rules || []).join(', ');
+      const distinct = (column.distinct_values || []).slice(0, 8).map(value => String(value)).join(', ');
+      el.innerHTML = `<div class="asset-row">
+        <div>
+          <div class="asset-title">${escapeHtml(column.name)}</div>
+          <div class="asset-meta">
+            <span>${escapeHtml(column.quality_kind || 'field')}</span>
+            <span>${escapeHtml((column.types || []).join(','))}</span>
+            <span>${Number(column.non_null_count || 0)} non-null</span>
+            <span>${escapeHtml(suggestions)}</span>
+            <span>${escapeHtml(distinct)}</span>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function renderReferenceTableOptions() {
+      const tableEl = document.getElementById('referentialTable');
+      if (!tableEl) return;
+      const current = tableEl.value;
+      const references = state.qualityContext?.reference_tables || [];
+      tableEl.innerHTML = references.map(table => {
+        return `<option value="${escapeHtml(table.table_id)}">${escapeHtml(table.label || table.table_id)}</option>`;
+      }).join('');
+      if (current && references.some(table => table.table_id === current)) tableEl.value = current;
+      renderReferenceColumnOptions();
+    }
+
+    function renderReferenceColumnOptions() {
+      const columnEl = document.getElementById('referenceColumn');
+      const tableEl = document.getElementById('referentialTable');
+      if (!columnEl || !tableEl) return;
+      const reference = (state.qualityContext?.reference_tables || []).find(table => table.table_id === tableEl.value);
+      const current = columnEl.value;
+      const columns = reference?.columns || [];
+      columnEl.innerHTML = columns.map(column => `<option value="${escapeHtml(column)}">${escapeHtml(column)}</option>`).join('');
+      if (current && columns.includes(current)) columnEl.value = current;
+    }
+
+    function buildRuleParams(type) {
+      const params = {};
+      if (type === 'accepted_values') params.values = document.getElementById('paramValues').value.split(',').map(v => v.trim()).filter(Boolean);
+      if (type === 'numeric_range') {
+        const min = document.getElementById('paramMin').value;
+        const max = document.getElementById('paramMax').value;
+        if (min !== '') params.min = Number(min);
+        if (max !== '') params.max = Number(max);
+      }
+      if (type === 'regex') params.pattern = document.getElementById('paramPattern').value;
+      if (type === 'freshness') params.max_age_seconds = Number(document.getElementById('paramAge').value || 0);
+      if (type === 'row_count_drift') {
+        ['MinCount:min_count', 'MaxCount:max_count', 'Baseline:baseline_count', 'Pct:max_percent_change'].forEach(pair => {
+          const [suffix, key] = pair.split(':');
+          const value = document.getElementById('param' + suffix).value;
+          if (value !== '') params[key] = Number(value);
+        });
+      }
+      if (type === 'referential') {
+        params.reference_table_id = document.getElementById('referentialTable').value;
+        params.reference_column = document.getElementById('referenceColumn').value;
+      }
+      return params;
+    }
+
+    async function createQualityRule() {
+      const tableId = document.getElementById('qualityTable').value;
+      const type = document.getElementById('ruleType').value;
+      setStatus('qualityStatus', 'Saving...');
+      try {
+        await api('/quality/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            table_id: tableId,
+            type,
+            name: document.getElementById('ruleName').value || undefined,
+            column: document.getElementById('ruleColumn').disabled ? undefined : document.getElementById('ruleColumn').value || undefined,
+            params: buildRuleParams(type)
+          })
+        });
+        setStatus('qualityStatus', 'Rule saved.', true);
+        await refreshQuality();
+      } catch (err) {
+        setStatus('qualityStatus', err.message, false);
+      }
+    }
+
+    async function runQuality() {
+      const tableId = document.getElementById('qualityTable').value;
+      setStatus('qualityStatus', 'Running...');
+      try {
+        const data = await api('/quality/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId })
+        });
+        setStatus('qualityStatus', data.run.status, data.run.status === 'succeeded');
+        await Promise.all([refreshQuality(), refreshAlerts(), refreshRuns()]);
+      } catch (err) {
+        setStatus('qualityStatus', err.message, false);
+      }
+    }
+
+    function renderRules(rules) {
+      document.getElementById('rulesList').innerHTML = (rules || []).map(rule => {
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(rule.name)}</div>
+            <div class="asset-meta"><span>${escapeHtml(rule.table_id)}</span><span>${escapeHtml(rule.type)}</span><span>${escapeHtml(rule.column || '')}</span></div>
+          </div>
+          <span class="tag">${escapeHtml(rule.severity)}</span>
+        </div>`;
+      }).join('') || '<div class="empty">No rules</div>';
+    }
+
+    function renderQualityResults(results) {
+      document.getElementById('qualityResults').innerHTML = (results || []).slice(0, 10).map(result => {
+        const cls = result.status === 'passed' ? 'success' : result.status === 'failed' ? 'danger' : 'warning';
+        const sample = (result.sample_failures || []).length
+          ? `<details><summary>Failure samples</summary><pre>${escapeHtml(JSON.stringify(result.sample_failures, null, 2))}</pre></details>`
+          : '';
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(result.rule_name || result.rule_id)}</div>
+            <div class="asset-meta"><span>${escapeHtml(result.table_id)}</span><span>${Number(result.failed_count || 0)} failures</span></div>
+            ${sample}
+          </div>
+          <span class="tag ${cls}">${escapeHtml(result.status)}</span>
+        </div>`;
+      }).join('') || '<div class="empty">No results</div>';
+    }
+
+    function renderOperationFields() {
+      const type = document.getElementById('opType').value;
+      const input = (id, label) => `<label class="span-6">${label}<input id="${id}" type="text" /></label>`;
+      let html = '';
+      if (type === 'filter') {
+        html = input('opColumn', 'Column') + `<label class="span-6">Operator<select id="opOperator">
+          <option value="equals">Equals</option><option value="not_equals">Not equals</option><option value="contains">Contains</option>
+          <option value="gt">Greater than</option><option value="gte">Greater or equal</option><option value="lt">Less than</option>
+          <option value="lte">Less or equal</option><option value="not_blank">Not blank</option>
+        </select></label>` + input('opValue', 'Value');
+      }
+      if (type === 'select') html = input('opColumns', 'Columns');
+      if (type === 'rename') html = input('opMapping', 'Mapping');
+      if (type === 'cast') html = input('opColumn', 'Column') + `<label class="span-6">To<select id="opCastTo"><option value="string">String</option><option value="integer">Integer</option><option value="number">Number</option><option value="boolean">Boolean</option></select></label>`;
+      if (type === 'deduplicate') html = input('opColumns', 'Columns');
+      if (type === 'calculate') html = input('opColumn', 'New column') + `<label class="span-6">Mode<select id="opCalcMode"><option value="constant">Constant</option><option value="copy">Copy</option><option value="coalesce">Coalesce</option></select></label>` + input('opValue', 'Value or source');
+      if (type === 'group') html = input('opGroupBy', 'Group by') + input('opAggs', 'Aggregations');
+      if (type === 'join') html = `<label class="span-6">Right table<select id="opSourceTable"></select></label>` + input('opLeftKey', 'Left key') + input('opRightKey', 'Right key');
+      if (type === 'union') html = `<label class="span-6">Other table<select id="opSourceTable"></select></label>`;
+      document.getElementById('operationFields').innerHTML = html;
+      populateOperationTableSelect();
+    }
+
+    function populateOperationTableSelect() {
+      const el = document.getElementById('opSourceTable');
+      if (!el) return;
+      el.innerHTML = state.tables.map(table => `<option value="${escapeHtml(table.table_id)}">${escapeHtml(table.table_id)}</option>`).join('');
+    }
+
+    function addOperation() {
+      const type = document.getElementById('opType').value;
+      const params = {};
+      const read = id => document.getElementById(id) ? document.getElementById(id).value : '';
+      if (type === 'filter') {
+        params.column = read('opColumn');
+        params.operator = read('opOperator');
+        params.value = read('opValue');
+      }
+      if (type === 'select') params.columns = read('opColumns').split(',').map(v => v.trim()).filter(Boolean);
+      if (type === 'rename') {
+        params.mapping = {};
+        read('opMapping').split(',').map(v => v.trim()).filter(Boolean).forEach(pair => {
+          const parts = pair.split(':');
+          if (parts.length === 2) params.mapping[parts[0].trim()] = parts[1].trim();
+        });
+      }
+      if (type === 'cast') {
+        params.column = read('opColumn');
+        params.to = read('opCastTo');
+      }
+      if (type === 'deduplicate') params.columns = read('opColumns').split(',').map(v => v.trim()).filter(Boolean);
+      if (type === 'calculate') {
+        params.column = read('opColumn');
+        params.mode = read('opCalcMode');
+        if (params.mode === 'copy') params.source_column = read('opValue');
+        else params.value = read('opValue');
+      }
+      if (type === 'group') {
+        params.group_by = read('opGroupBy').split(',').map(v => v.trim()).filter(Boolean);
+        params.aggregations = read('opAggs') ? JSON.parse(read('opAggs')) : [{ function: 'count', as: 'row_count' }];
+      }
+      if (type === 'join') {
+        params.source_table_id = read('opSourceTable');
+        params.left_key = read('opLeftKey');
+        params.right_key = read('opRightKey');
+        params.how = 'left';
+      }
+      if (type === 'union') params.source_table_id = read('opSourceTable');
+      state.modelOps.push({ type, params });
+      renderModelOps();
+    }
+
+    function clearOperations() {
+      state.modelOps = [];
+      renderModelOps();
+    }
+
+    function renderModelOps() {
+      document.getElementById('modelOps').innerHTML = state.modelOps.map((op, idx) => {
+        return `<div class="op-row"><span>${idx + 1}. ${escapeHtml(op.type)} ${escapeHtml(JSON.stringify(op.params))}</span><button onclick="removeOperation(${idx})">Remove</button></div>`;
+      }).join('');
+    }
+
+    function removeOperation(idx) {
+      state.modelOps.splice(idx, 1);
+      renderModelOps();
+    }
+
+    async function createModel() {
+      setStatus('modelStatus', 'Saving...');
+      try {
+        await api('/models', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('modelName').value,
+            source_table_id: document.getElementById('modelSource').value,
+            operations: state.modelOps
+          })
+        });
+        setStatus('modelStatus', 'Model saved.', true);
+        clearOperations();
+        await Promise.all([refreshModels(), refreshTables()]);
+      } catch (err) {
+        setStatus('modelStatus', err.message, false);
+      }
+    }
+
+    async function refreshModels() {
+      await refreshTables();
+      state.models = await api('/models');
+      renderModels();
+      renderJobTarget();
+    }
+
+    function renderModels() {
+      document.getElementById('modelsList').innerHTML = state.models.map(model => {
+        const materialized = model.last_materialized_at
+          ? `${Number(model.last_row_count || 0)} rows materialized`
+          : 'not materialized';
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(model.name)}</div>
+            <div class="asset-meta"><span>${escapeHtml(model.source_table_id)}</span><span>${escapeHtml(model.target_table_id)}</span><span>${(model.operations || []).length} ops</span><span>${escapeHtml(materialized)}</span></div>
+          </div>
+          <div class="toolbar">
+            <button data-preview="${escapeHtml(model.id)}">Preview</button>
+            <button data-materialize="${escapeHtml(model.id)}">Materialize</button>
+          </div>
+        </div>`;
+      }).join('') || '<div class="empty">No models</div>';
+      document.querySelectorAll('[data-preview]').forEach(button => {
+        button.addEventListener('click', () => previewModel(button.dataset.preview));
+      });
+      document.querySelectorAll('[data-materialize]').forEach(button => {
+        button.addEventListener('click', () => materializeModel(button.dataset.materialize));
+      });
+    }
+
+    async function previewModel(modelId) {
+      try {
+        const preview = await api('/models/' + encodeURIComponent(modelId) + '/preview', { method: 'POST' });
+        document.getElementById('modelPreview').textContent = JSON.stringify(preview.rows, null, 2);
+      } catch (err) {
+        document.getElementById('modelPreview').textContent = err.message;
+      }
+    }
+
+    async function materializeModel(modelId) {
+      setStatus('modelStatus', 'Materializing...');
+      try {
+        const result = await api('/models/' + encodeURIComponent(modelId) + '/materialize', { method: 'POST' });
+        setStatus('modelStatus', `Materialized ${result.row_count} row(s) into ${result.table_id}.`, true);
+        document.getElementById('modelPreview').textContent = JSON.stringify(result, null, 2);
+        await Promise.all([refreshModels(), refreshTables(), refreshRuns(), refreshStorage()]);
+      } catch (err) {
+        setStatus('modelStatus', err.message, false);
+      }
+    }
+
+    function renderJobTarget() {
+      const kindEl = document.getElementById('jobKind');
+      const targetEl = document.getElementById('jobTargetFields');
+      if (!kindEl || !targetEl) return;
+      const kind = kindEl.value;
+      if (kind === 'quality_check') {
+        targetEl.innerHTML = `<label class="span-12">Table<select id="jobTableTarget"></select></label>`;
+        populateTableSelects();
+      } else if (kind === 'source_ingest') {
+        targetEl.innerHTML = `<label class="span-12">Source<select id="jobSourceTarget"></select></label>`;
+        const el = document.getElementById('jobSourceTarget');
+        el.innerHTML = state.sources
+          .filter(source => source.reusable)
+          .map(source => `<option value="${escapeHtml(source.id)}">${escapeHtml(source.name)} (${escapeHtml(source.table_id)})</option>`)
+          .join('');
+      } else if (kind === 'league_ingest') {
+        targetEl.innerHTML = `<label class="span-12">League ID<input id="jobLeagueTarget" type="text" /></label>`;
+      } else if (kind === 'model_preview' || kind === 'model_materialize') {
+        targetEl.innerHTML = `<label class="span-12">Model<select id="jobModelTarget"></select></label>`;
+        const el = document.getElementById('jobModelTarget');
+        el.innerHTML = state.models.map(model => `<option value="${escapeHtml(model.id)}">${escapeHtml(model.name)}</option>`).join('');
+      } else {
+        targetEl.innerHTML = '<div class="span-12"></div>';
+      }
+    }
+
+    function renderScheduleFields() {
+      const scheduleEl = document.getElementById('jobSchedule');
+      const targetEl = document.getElementById('jobScheduleFields');
+      if (!scheduleEl || !targetEl) return;
+      const type = scheduleEl.value;
+      if (type === 'interval') {
+        targetEl.innerHTML = `<label class="span-6">Interval seconds<input id="jobIntervalSeconds" type="number" min="1" value="3600" /></label>`;
+      } else if (type === 'daily') {
+        targetEl.innerHTML = `<label class="span-6">Time (UTC)<input id="jobDailyTime" type="time" value="09:00" /></label>`;
+      } else if (type === 'weekly') {
+        targetEl.innerHTML = `<label class="span-6">Day<select id="jobWeeklyDay">
+          <option value="monday">Monday</option>
+          <option value="tuesday">Tuesday</option>
+          <option value="wednesday">Wednesday</option>
+          <option value="thursday">Thursday</option>
+          <option value="friday">Friday</option>
+          <option value="saturday">Saturday</option>
+          <option value="sunday">Sunday</option>
+        </select></label>
+        <label class="span-6">Time (UTC)<input id="jobWeeklyTime" type="time" value="09:00" /></label>`;
+      } else if (type === 'cron') {
+        targetEl.innerHTML = `<label class="span-12">Cron expression<input id="jobCronExpression" type="text" value="0 9 * * 1-5" /></label>`;
+      } else {
+        targetEl.innerHTML = '<div class="span-12"></div>';
+      }
+    }
+
+    function buildJobSchedule() {
+      const type = document.getElementById('jobSchedule').value;
+      const schedule = { type };
+      if (type === 'interval') {
+        schedule.seconds = Number(document.getElementById('jobIntervalSeconds').value || 60);
+      }
+      if (type === 'daily') {
+        schedule.time = document.getElementById('jobDailyTime').value || '09:00';
+      }
+      if (type === 'weekly') {
+        schedule.day_of_week = document.getElementById('jobWeeklyDay').value;
+        schedule.time = document.getElementById('jobWeeklyTime').value || '09:00';
+      }
+      if (type === 'cron') {
+        schedule.expression = document.getElementById('jobCronExpression').value.trim();
+      }
+      return schedule;
+    }
+
+    function scheduleLabel(schedule) {
+      if (!schedule || !schedule.type) return 'manual';
+      if (schedule.type === 'interval') return `every ${Number(schedule.seconds || schedule.interval_seconds || 60)}s`;
+      if (schedule.type === 'daily' && schedule.time) return `daily ${schedule.time} UTC`;
+      if (schedule.type === 'weekly') return `weekly ${schedule.day_of_week || 'monday'} ${schedule.time || '09:00'} UTC`;
+      if (schedule.type === 'cron') return `cron ${schedule.expression || ''}`.trim();
+      return schedule.type;
+    }
+
+    async function createJob() {
+      const kind = document.getElementById('jobKind').value;
+      const target = {};
+      if (kind === 'quality_check') target.table_id = document.getElementById('jobTableTarget').value;
+      if (kind === 'source_ingest') target.source_id = document.getElementById('jobSourceTarget').value;
+      if (kind === 'league_ingest') target.league_id = document.getElementById('jobLeagueTarget').value;
+      if (kind === 'model_preview' || kind === 'model_materialize') target.model_id = document.getElementById('jobModelTarget').value;
+      const schedule = buildJobSchedule();
+      setStatus('jobStatus', 'Saving...');
+      try {
+        await api('/jobs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('jobName').value,
+            kind,
+            target,
+            schedule,
+            retry_count: Number(document.getElementById('jobRetryCount').value || 0),
+            retry_delay_seconds: Number(document.getElementById('jobRetryDelay').value || 60)
+          })
+        });
+        setStatus('jobStatus', 'Job saved.', true);
+        await Promise.all([refreshJobs(), refreshScheduler()]);
+      } catch (err) {
+        setStatus('jobStatus', err.message, false);
+      }
+    }
+
+    async function refreshJobs() {
+      state.jobs = await api('/jobs');
+      document.getElementById('jobsList').innerHTML = state.jobs.map(job => {
+        const statusClass = job.last_status === 'failed' ? 'danger' : job.last_status === 'succeeded' ? 'success' : '';
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(job.name)}</div>
+            <div class="asset-meta">
+              <span>${escapeHtml(job.kind)}</span>
+              <span>${escapeHtml(scheduleLabel(job.schedule))}</span>
+              <span>${escapeHtml(job.enabled === false ? 'disabled' : 'enabled')}</span>
+              <span>next ${escapeHtml(formatTimestamp(job.next_run_at))}</span>
+              <span>retries ${Number(job.failed_attempts || 0)}/${Number(job.retry_count || 0)}</span>
+              <span>${escapeHtml(JSON.stringify(job.target || {}))}</span>
+            </div>
+          </div>
+          <div class="toolbar"><span class="tag ${statusClass}">${escapeHtml(job.last_status || 'new')}</span><button data-run-job="${escapeHtml(job.id)}">Run</button></div>
+        </div>`;
+      }).join('') || '<div class="empty">No jobs</div>';
+      document.querySelectorAll('[data-run-job]').forEach(button => {
+        button.addEventListener('click', () => runJob(button.dataset.runJob));
+      });
+    }
+
+    async function runJob(jobId) {
+      try {
+        await api('/jobs/' + encodeURIComponent(jobId) + '/run', { method: 'POST' });
+        await Promise.all([refreshJobs(), refreshRuns(), refreshAlerts(), refreshScheduler()]);
+      } catch (err) {
+        setStatus('jobStatus', err.message, false);
+      }
+    }
+
+    async function refreshScheduler() {
+      try {
+        state.scheduler = await api('/scheduler/status');
+        document.getElementById('schedulerStatus').innerHTML = `
+          <div class="metric span-4"><span>Enabled jobs</span><strong>${Number(state.scheduler.enabled_job_count || 0)}</strong></div>
+          <div class="metric span-4"><span>Due now</span><strong>${Number(state.scheduler.due_count || 0)}</strong></div>
+          <div class="metric span-4"><span>Next due</span><strong>${escapeHtml(formatTimestamp(state.scheduler.next_due_at))}</strong></div>`;
+      } catch (err) {
+        document.getElementById('schedulerStatus').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function runDueJobs() {
+      setStatus('jobStatus', 'Running due jobs...');
+      try {
+        const data = await api('/scheduler/run-due', { method: 'POST' });
+        setStatus('jobStatus', `${data.executed_count || 0} due job(s) executed.`, true);
+        await Promise.all([refreshJobs(), refreshRuns(), refreshAlerts(), refreshScheduler(), refreshStorage()]);
+      } catch (err) {
+        setStatus('jobStatus', err.message, false);
+      }
+    }
+
+    async function refreshAlerts() {
+      try {
+        state.alerts = await api('/alerts');
+        document.getElementById('alertCount').textContent = state.alerts.filter(alert => alert.status === 'open').length + ' alerts';
+        document.getElementById('alertsList').innerHTML = state.alerts.map(alert => {
+          const cls = alert.severity === 'error' ? 'danger' : alert.severity === 'warning' ? 'warning' : '';
+          const delivery = alert.delivery_status && alert.delivery_status !== 'none'
+            ? `${alert.delivery_status} (${Number(alert.delivery_attempt_count || 0)})`
+            : 'in-app only';
+          return `<div class="asset-row">
+            <div>
+              <div class="asset-title">${escapeHtml(alert.title)}</div>
+              <div class="asset-meta"><span>${escapeHtml(alert.message)}</span><span>${escapeHtml(alert.table_id || '')}</span><span>${escapeHtml(delivery)}</span></div>
+            </div>
+            <div class="toolbar"><span class="tag ${cls}">${escapeHtml(alert.status)}</span>${alert.status === 'open' ? `<button data-ack="${escapeHtml(alert.id)}">Ack</button>` : ''}</div>
+          </div>`;
+        }).join('') || '<div class="empty">No alerts</div>';
+        document.querySelectorAll('[data-ack]').forEach(button => {
+          button.addEventListener('click', () => ackAlert(button.dataset.ack));
+        });
+      } catch (err) {
+        document.getElementById('alertsList').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function refreshAlertCenter() {
+      await Promise.all([refreshAlerts(), refreshAlertDeliveryTargets(), refreshAlertDeliveries()]);
+    }
+
+    async function createAlertDeliveryTarget() {
+      setStatus('alertTargetStatus', 'Saving...');
+      const severities = document.getElementById('alertTargetSeverities').value
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean);
+      try {
+        await api('/alerts/delivery-targets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: document.getElementById('alertTargetName').value,
+            kind: document.getElementById('alertTargetKind').value,
+            url: document.getElementById('alertTargetUrl').value,
+            severities
+          })
+        });
+        setStatus('alertTargetStatus', 'Delivery target saved.', true);
+        await refreshAlertDeliveryTargets();
+      } catch (err) {
+        setStatus('alertTargetStatus', err.message, false);
+      }
+    }
+
+    async function refreshAlertDeliveryTargets() {
+      try {
+        state.alertDeliveryTargets = await api('/alerts/delivery-targets');
+        document.getElementById('alertDeliveryTargetsList').innerHTML = state.alertDeliveryTargets.map(target => {
+          const statusClass = target.last_status === 'failed' ? 'danger' : target.last_status === 'succeeded' ? 'success' : '';
+          const enabledText = target.enabled === false ? 'disabled' : 'enabled';
+          return `<div class="asset-row">
+            <div>
+              <div class="asset-title">${escapeHtml(target.name)}</div>
+              <div class="asset-meta">
+                <span>${escapeHtml(target.kind)}</span>
+                <span>${escapeHtml(enabledText)}</span>
+                <span>${escapeHtml((target.severities || []).join(','))}</span>
+                <span>${escapeHtml(target.last_error || target.url)}</span>
+              </div>
+            </div>
+            <div class="toolbar">
+              <span class="tag ${statusClass}">${escapeHtml(target.last_status || 'new')}</span>
+              <button data-test-target="${escapeHtml(target.id)}">Test</button>
+              <button data-toggle-target="${escapeHtml(target.id)}" data-enabled="${target.enabled === false ? 'true' : 'false'}">${target.enabled === false ? 'Enable' : 'Disable'}</button>
+            </div>
+          </div>`;
+        }).join('') || '<div class="empty">No delivery targets</div>';
+        document.querySelectorAll('[data-test-target]').forEach(button => {
+          button.addEventListener('click', () => testAlertDeliveryTarget(button.dataset.testTarget));
+        });
+        document.querySelectorAll('[data-toggle-target]').forEach(button => {
+          button.addEventListener('click', () => toggleAlertDeliveryTarget(button.dataset.toggleTarget, button.dataset.enabled === 'true'));
+        });
+      } catch (err) {
+        document.getElementById('alertDeliveryTargetsList').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function testAlertDeliveryTarget(targetId) {
+      setStatus('alertTargetStatus', 'Sending test...');
+      try {
+        const delivery = await api('/alerts/delivery-targets/' + encodeURIComponent(targetId) + '/test', { method: 'POST' });
+        setStatus('alertTargetStatus', `Test ${delivery.status}.`, delivery.status === 'succeeded');
+        await Promise.all([refreshAlertDeliveryTargets(), refreshAlertDeliveries()]);
+      } catch (err) {
+        setStatus('alertTargetStatus', err.message, false);
+      }
+    }
+
+    async function toggleAlertDeliveryTarget(targetId, enabled) {
+      try {
+        await api('/alerts/delivery-targets/' + encodeURIComponent(targetId) + '/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        });
+        await refreshAlertDeliveryTargets();
+      } catch (err) {
+        setStatus('alertTargetStatus', err.message, false);
+      }
+    }
+
+    async function refreshAlertDeliveries() {
+      try {
+        state.alertDeliveries = await api('/alerts/deliveries');
+        document.getElementById('alertDeliveryLog').innerHTML = state.alertDeliveries.map(delivery => {
+          const cls = delivery.status === 'succeeded' ? 'success' : 'danger';
+          return `<div class="asset-row">
+            <div>
+              <div class="asset-title">${escapeHtml(delivery.target_name || delivery.target_id || 'delivery')}</div>
+              <div class="asset-meta">
+                <span>${escapeHtml(delivery.kind || '')}</span>
+                <span>${escapeHtml(delivery.alert_id || '')}</span>
+                <span>${escapeHtml(delivery.message || '')}</span>
+                <span>${escapeHtml(formatTimestamp(delivery.finished_at))}</span>
+              </div>
+            </div>
+            <span class="tag ${cls}">${escapeHtml(delivery.status)}</span>
+          </div>`;
+        }).join('') || '<div class="empty">No delivery attempts</div>';
+      } catch (err) {
+        document.getElementById('alertDeliveryLog').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    async function ackAlert(alertId) {
+      await api('/alerts/' + encodeURIComponent(alertId) + '/ack', { method: 'POST' });
+      await refreshAlertCenter();
+    }
+
+    function diagnosticClass(status) {
+      if (status === 'ok') return 'success';
+      if (status === 'error') return 'danger';
+      return 'warning';
+    }
+
+    async function refreshDiagnostics() {
+      try {
+        const diagnostics = await api('/diagnostics');
+        state.diagnostics = diagnostics;
+        const adapters = diagnostics.adapters && diagnostics.adapters.adapters ? diagnostics.adapters.adapters : [];
+        const registeredAdapters = adapters.filter(adapter => adapter.registered).length;
+        document.getElementById('diagnosticMetrics').innerHTML = `
+          <div class="metric span-4"><span>Status</span><strong><span class="tag ${diagnosticClass(diagnostics.status)}">${escapeHtml(diagnostics.status)}</span></strong></div>
+          <div class="metric span-4"><span>Storage</span><strong><span class="tag ${diagnosticClass(diagnostics.storage.status)}">${escapeHtml(diagnostics.storage.status)}</span></strong></div>
+          <div class="metric span-4"><span>Metadata records</span><strong>${Number(diagnostics.metadata.total_records || 0)}</strong></div>
+          <div class="metric span-4"><span>Adapters</span><strong>${registeredAdapters}/${adapters.length}</strong></div>
+          <div class="metric span-4"><span>Due jobs</span><strong>${Number(diagnostics.scheduler.due_count || 0)}</strong></div>
+          <div class="metric span-4"><span>Open alerts</span><strong>${Number(diagnostics.activity.open_alert_count || 0)}</strong></div>`;
+        document.getElementById('diagnosticDetails').textContent = JSON.stringify(diagnostics, null, 2);
+      } catch (err) {
+        document.getElementById('diagnosticMetrics').innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+        document.getElementById('diagnosticDetails').textContent = err.message;
+      }
+    }
+
+    async function refreshStorage() {
+      try {
+        const storage = await api('/storage');
+        state.storage = storage;
+        document.getElementById('storageSize').textContent = formatBytes(storage.total_bytes || 0);
+        document.getElementById('storageMetrics').innerHTML = `
+          <div class="metric span-4"><span>Total</span><strong>${formatBytes(storage.total_bytes)}</strong></div>
+          <div class="metric span-4"><span>Bronze</span><strong>${formatBytes(storage.bronze_bytes)}</strong></div>
+          <div class="metric span-4"><span>Models</span><strong>${formatBytes(storage.model_bytes)}</strong></div>
+          <div class="metric span-4"><span>Control</span><strong>${formatBytes(storage.control_plane_bytes)}</strong></div>`;
+        renderStorageFiles(storage);
+        document.getElementById('storagePaths').textContent = JSON.stringify(storage, null, 2);
+      } catch (err) {
+        document.getElementById('storagePaths').textContent = err.message;
+      }
+    }
+
+    function renderStorageFiles(storage) {
+      const files = [...(storage.table_files || []), ...(storage.history_files || [])];
+      document.getElementById('storageFiles').innerHTML = files.map(file => {
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(file.label || file.relative_path)}</div>
+            <div class="asset-meta">
+              <span>${escapeHtml(file.scope)}</span>
+              <span>${escapeHtml(file.table_id || file.collection || '')}</span>
+              <span>${formatBytes(file.size_bytes || 0)}</span>
+              <span>${escapeHtml(file.mtime_iso || '')}</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('') || '<div class="empty">No Foundry storage files yet</div>';
+    }
+
+    function storageCleanupPayload() {
+      const scope = document.getElementById('storageCleanupScope').value;
+      const scopes = scope === 'all' ? ['bronze', 'models', 'run_history'] : [scope];
+      const target = document.getElementById('storageRetentionTarget').value.trim();
+      return {
+        scopes,
+        older_than_days: Number(document.getElementById('storageRetentionDays').value || 0),
+        table_id: target || null
+      };
+    }
+
+    async function previewStorageCleanup() {
+      setStatus('storageCleanupStatus', 'Previewing...');
+      try {
+        const preview = await api('/storage/retention/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(storageCleanupPayload())
+        });
+        state.storageCleanupPreview = preview;
+        setStatus('storageCleanupStatus', `${preview.candidate_count || 0} file(s), ${formatBytes(preview.total_bytes || 0)} eligible.`, true);
+        renderStorageCleanupPreview(preview);
+      } catch (err) {
+        setStatus('storageCleanupStatus', err.message, false);
+      }
+    }
+
+    async function applyStorageCleanup() {
+      const payload = storageCleanupPayload();
+      payload.confirm = true;
+      if (!window.confirm('Delete files matched by the current retention policy?')) return;
+      setStatus('storageCleanupStatus', 'Cleaning up...');
+      try {
+        const result = await api('/storage/cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        state.storageCleanupPreview = result;
+        setStatus('storageCleanupStatus', `${result.deleted_count || 0} file(s), ${formatBytes(result.deleted_bytes || 0)} deleted.`, true);
+        renderStorageCleanupPreview(result);
+        await Promise.all([refreshStorage(), refreshTables(), refreshModels(), refreshRuns()]);
+      } catch (err) {
+        setStatus('storageCleanupStatus', err.message, false);
+      }
+    }
+
+    function renderStorageCleanupPreview(result) {
+      const files = result.candidates || [];
+      document.getElementById('storageCleanupPreview').innerHTML = files.map(file => {
+        const deleted = (result.deleted || []).some(item => item.path === file.path);
+        return `<div class="asset-row">
+          <div>
+            <div class="asset-title">${escapeHtml(file.label || file.relative_path)}</div>
+            <div class="asset-meta">
+              <span>${escapeHtml(file.scope)}</span>
+              <span>${escapeHtml(file.table_id || file.collection || '')}</span>
+              <span>${formatBytes(file.size_bytes || 0)}</span>
+              <span>${Math.round(Number(file.age_seconds || 0) / 86400)} days old</span>
+            </div>
+          </div>
+          <span class="tag ${deleted ? 'success' : ''}">${deleted ? 'deleted' : 'eligible'}</span>
+        </div>`;
+      }).join('') || '<div class="empty">No eligible files</div>';
+    }
+
+    function bundleRecordTotal(bundle) {
+      const counts = bundle && bundle.record_counts;
+      if (counts && Number.isFinite(Number(counts.total))) return Number(counts.total);
+      if (counts && Number.isFinite(Number(counts.imported))) return Number(counts.imported);
+      return 0;
+    }
+
+    async function exportMetadataBundle() {
+      setStatus('metadataBundleStatus', 'Exporting...');
+      try {
+        const includeHistory = document.getElementById('metadataIncludeHistory').value === 'true';
+        const bundle = await api('/export?include_history=' + String(includeHistory));
+        document.getElementById('metadataBundle').value = JSON.stringify(bundle, null, 2);
+        setStatus('metadataBundleStatus', `Exported ${bundleRecordTotal(bundle)} metadata record(s).`, true);
+      } catch (err) {
+        setStatus('metadataBundleStatus', err.message, false);
+      }
+    }
+
+    async function importMetadataBundle() {
+      const mode = document.getElementById('metadataImportMode').value;
+      if (mode === 'replace' && !window.confirm('Replace the collections included in this metadata bundle?')) return;
+      setStatus('metadataBundleStatus', 'Importing...');
+      try {
+        const raw = document.getElementById('metadataBundle').value.trim();
+        if (!raw) throw new Error('Paste an exported metadata bundle first.');
+        const bundle = JSON.parse(raw);
+        const result = await api('/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, bundle })
+        });
+        setStatus('metadataBundleStatus', `Imported ${bundleRecordTotal(result)} metadata record(s).`, true);
+        await Promise.all([
+          refreshSources(),
+          refreshTables(),
+          refreshModels(),
+          refreshQuality(),
+          refreshJobs(),
+          refreshScheduler(),
+          refreshAlertCenter(),
+          refreshStorage()
+        ]);
+      } catch (err) {
+        setStatus('metadataBundleStatus', err.message, false);
       }
     }
 
     async function loadTransformations() {
       const el = document.getElementById('transformList');
-      el.innerHTML = 'Loading…';
+      el.innerHTML = '<div class="empty">Loading</div>';
       try {
-        const r = await fetch(base + '/transformations');
-        const d = await r.json();
+        const data = await api('/transformations');
         let html = '';
         ['bronze', 'silver', 'gold'].forEach(layer => {
-          const names = d[layer] || [];
-          if (names.length === 0) return;
-          html += '<p class="badge">' + layer + '</p><ul class="table-list">';
-          names.forEach(name => {
-            const path = base + '/transformations/' + layer + '/' + encodeURIComponent(name);
-            html += '<li><a href="#" data-path="' + path + '">' + name + '</a></li>';
+          (data[layer] || []).forEach(name => {
+            html += `<div class="asset-row">
+              <div><div class="asset-title">${escapeHtml(name)}</div><div class="asset-meta"><span>${escapeHtml(layer)}</span></div></div>
+              <button data-sql-layer="${escapeHtml(layer)}" data-sql-name="${escapeHtml(name)}">Open</button>
+            </div>`;
           });
-          html += '</ul>';
         });
-        el.innerHTML = html || 'None.';
-        el.querySelectorAll('a[data-path]').forEach(a => {
-          a.addEventListener('click', e => { e.preventDefault(); loadSql(a.dataset.path); });
+        el.innerHTML = html || '<div class="empty">No SQL artifacts</div>';
+        document.querySelectorAll('[data-sql-layer]').forEach(button => {
+          button.addEventListener('click', () => loadSql(button.dataset.sqlLayer, button.dataset.sqlName));
         });
-      } catch (e) {
-        el.innerHTML = 'Error: ' + e.message;
+      } catch (err) {
+        el.innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
       }
     }
 
-    async function loadSql(path) {
-      const titleEl = document.getElementById('sqlTitle');
-      const contentEl = document.getElementById('sqlContent');
-      const panel = document.getElementById('sqlPanel');
-      titleEl.textContent = path;
-      contentEl.textContent = 'Loading…';
-      panel.classList.remove('hidden');
+    async function loadSql(layer, name) {
       try {
-        const r = await fetch(path);
-        const d = await r.json();
-        contentEl.textContent = d.sql || '';
-      } catch (e) {
-        contentEl.textContent = 'Error: ' + e.message;
+        const data = await api('/transformations/' + encodeURIComponent(layer) + '/' + encodeURIComponent(name));
+        document.getElementById('sqlTitle').textContent = layer + '/' + name;
+        document.getElementById('sqlContent').textContent = data.sql || '';
+      } catch (err) {
+        document.getElementById('sqlContent').textContent = err.message;
       }
     }
 
-    async function loadRuns() {
-      const el = document.getElementById('runsList');
-      try {
-        const r = await fetch(base + '/runs');
-        const list = await r.json();
-        if (!list || list.length === 0) {
-          el.innerHTML = 'No runs yet.';
-          return;
-        }
-        el.innerHTML = '<ul class="table-list">' + list.map(run => {
-          const ts = run.timestamp ? new Date(run.timestamp * 1000).toISOString() : '';
-          return '<li>' + run.kind + (run.league_id ? ' ' + run.league_id : '') + ' <span class="badge">' + ts + '</span></li>';
-        }).join('') + '</ul>';
-      } catch (e) {
-        el.innerHTML = 'Error: ' + e.message;
-      }
+    async function boot() {
+      scrubAdminKeyFromUrl();
+      renderSourceConnector();
+      renderOperationFields();
+      renderJobTarget();
+      renderScheduleFields();
+      await Promise.all([
+        loadConfig(),
+        refreshSources(),
+        refreshTables(),
+        refreshRuns(),
+        refreshModels(),
+        refreshQuality(),
+        refreshScheduler(),
+        refreshAlerts(),
+        refreshDiagnostics(),
+        refreshStorage()
+      ]);
     }
 
-    loadConfig();
-    loadTables();
-    loadTransformations();
-    loadRuns();
+    boot();
   </script>
 </body>
 </html>
