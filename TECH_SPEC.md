@@ -22,7 +22,7 @@ NFL/Sleeper is the first domain adapter; the same patterns extend to other perso
 - **Local-first storage** - No database, Docker, or multi-service orchestration required.
 - **Lineage and observability** - Tables expose schema, row count, freshness, storage path, upstream assets, downstream dependents, run history, quality results, and alerts.
 - **Sleeper-stream-scribe API** - Endpoints and response shapes below implemented and stable.
-- **Recommendation surface** - Waiver/add recommendation endpoint implemented and tested.
+- **Recommendation surface** - Waiver/add and manager-brief data-product endpoints implemented and tested.
 
 ---
 
@@ -34,6 +34,7 @@ NFL/Sleeper is the first domain adapter; the same patterns extend to other perso
 | API | FastAPI REST; CORS for frontend on different origin |
 | UI | Single static HTML + vanilla JS served by FastAPI at `/admin` |
 | Storage | Local JSONL bronze files, model-output JSONL files, plus JSON/JSONL control-plane metadata |
+| Ambient LLM | Local Ollama via `ambient-context-engine`; no paid cloud model required |
 | Testing | pytest unit + contract + admin integration tests |
 | Docs | README.md, TECH_SPEC.md, PLAN.md |
 
@@ -49,6 +50,7 @@ Implement exactly so the existing frontend works without changes.
 | POST | `/league/validate` | Validate league ID. Body: `{ "league_id": "..." }`. Response: `{ "valid": true\|false, "league_id": "...", "league_name": "..." }`. |
 | GET | `/injury` | Injury report. Optional query: `league_id`. Response: JSON array of `{ "player_id": string, "status": string, "updated_at"?: string }`. |
 | GET | `/recommendations/waiver` | Waiver/add recommendations. Optional query: `league_id`, `limit`. Response: `{ "recommendations": [...], "league_id": "..." }`. |
+| GET | `/recommendations/manager-brief` | Compact data product for fantasy-manager apps. Optional query: `league_id`, `limit`. Response: `{ "league_id": "...", "generated_at": "...", "summary": {...}, "priority_actions": [...], "models": {...} }`. |
 
 **Player object** for `/players/available` includes at least `id`, `player_id`, `name`, `position`, `team`, `status`, `age`, and `trending`.
 
@@ -62,7 +64,7 @@ Implement exactly so the existing frontend works without changes.
 - **Silver:** Cleaned, conformed, deduplicated canonical entity shapes.
 - **Gold:** Business-level aggregates and analytics per domain. API endpoints read from gold or silver outputs.
 
-NFL/Sleeper currently ingests broad NFL data and league-scoped data, then exposes league validation, available players, injury data, and recommendations.
+NFL/Sleeper currently ingests broad NFL data and league-scoped data, then exposes league validation, available players, injury data, recommendations, and a manager-brief bundle assembled from gold model outputs. Sleeperstream Scribe owns the fantasy manager UI; Foundry owns the reusable data products.
 
 ---
 
@@ -99,6 +101,21 @@ Source connector templates currently supported:
 
 - `file` for uploaded content or server-local paths in CSV, TSV, JSON, and JSONL formats.
 - `api` for unauthenticated public JSON GET requests with an optional dotted records path.
+
+Registered personal-data adapters:
+
+- `nfl_sleeper` writes broad NFL player data and league-scoped Sleeper records to `bronze:nfl_sleeper.*`.
+- `nfl_weekly_feed` writes weekly matchup, team, player, depth chart, weather, and FAAB feeds to `bronze:nfl_weekly_feed.*`.
+- `ai_daily_brief` writes AI Daily Brief transcript records to `bronze:ai_daily_brief.transcripts`.
+- `gmail` writes recent email records to `bronze:gmail.emails` with local Google OAuth and Gmail read-only access.
+- `google_calendar` writes schedule records to `bronze:google_calendar.events` with local Google OAuth and Calendar read-only access.
+- `android_messages` writes selected phone conversation exports to `bronze:android_messages.threads` through `/admin/ambient/messages/ingest`.
+
+Ambient confidence tables:
+
+- `silver:ambient_candidates` stores high and medium groundedness candidates with evidence, source record IDs, model, route, and review status.
+- `gold:ambient_actions` stores high-confidence auto-promoted records and human-approved medium-confidence records.
+- Low groundedness records are counted in evaluation runs but remain only in bronze.
 
 Low-code model operations currently supported for preview and materialization:
 
@@ -150,10 +167,14 @@ Admin routes are unauthenticated by default for local/dev use. When `FOUNDRY_ADM
 | Quality run | POST `/admin/quality/run` |
 | Quality results | GET `/admin/quality/results` |
 | Alerts | GET `/admin/alerts`, POST `/admin/alerts/{alert_id}/ack`, GET `/admin/alerts/delivery/templates`, GET/POST `/admin/alerts/delivery-targets`, POST `/admin/alerts/delivery-targets/{target_id}/toggle`, POST `/admin/alerts/delivery-targets/{target_id}/test`, GET `/admin/alerts/deliveries` |
-| Jobs | GET/POST `/admin/jobs`, POST `/admin/jobs/{job_id}/run` |
-| Scheduler | GET `/admin/scheduler/status`, POST `/admin/scheduler/run-due` |
+| Jobs | GET/POST `/admin/jobs`, GET `/admin/jobs/defaults`, POST `/admin/jobs/{job_id}/run` |
+| Scheduler | GET `/admin/scheduler/status`, GET `/admin/scheduler/startup-catchup`, POST `/admin/scheduler/run-due` |
 | Models | GET/POST `/admin/models`, POST `/admin/models/{model_id}/preview`, POST `/admin/models/{model_id}/materialize` |
 | Model operations | GET `/admin/models/operations` |
+| Ambient Ollama models | GET `/admin/ambient/ollama/models` |
+| Ambient evaluation | POST `/admin/ambient/evaluate` body `{ "table_id": "...", "model"?: "...", "limit"?: 100 }` |
+| Ambient review | GET `/admin/ambient/review`, POST `/admin/ambient/review/{candidate_id}/approve`, POST `/admin/ambient/review/{candidate_id}/ignore` |
+| Ambient Android bridge | POST `/admin/ambient/messages/ingest` |
 | Runs | GET `/admin/runs` |
 | Storage | GET `/admin/storage`, POST `/admin/storage/retention/preview`, POST `/admin/storage/cleanup` |
 | Diagnostics | GET `/admin/diagnostics` with storage, metadata, adapter, scheduler, and activity health |
@@ -169,6 +190,7 @@ Admin routes are unauthenticated by default for local/dev use. When `FOUNDRY_ADM
 - Default run: `python -m pytest`.
 - Contract tests protect sleeper-stream-scribe API compatibility.
 - Admin integration tests protect the local workbench behavior.
+- Ambient tests mock Google and Ollama clients; default tests must not require live Google, Android, or Ollama services.
 
 ---
 
@@ -186,18 +208,20 @@ Admin routes are unauthenticated by default for local/dev use. When `FOUNDRY_ADM
 - [x] Materialized model outputs create durable local model tables.
 - [x] Actual scheduler loop executes due jobs without manual clicks, with retries and failed-job alerts.
 - [x] Job schedules support manual, interval, hourly, daily-at-time, weekly-at-time, and five-field cron-style expressions.
+- [x] Startup seeds default weekly NFL/Sleeper, NFL weekly feed, default league, and AI Daily Brief ingest jobs, then runs overdue jobs immediately on API startup.
 - [x] Retention controls expose table-file breakdowns, preview cleanup candidates, and scoped cleanup actions.
 - [x] Non-in-app alert delivery through generic webhook and Slack-style webhook targets, with durable delivery logs.
 - [x] Optional admin API-key authentication is disabled by default and protects `/admin` routes when configured.
 - [x] Workbench metadata export/import round-trips sources, jobs, quality rules, models, alerts, alert targets, and optional history across local data roots.
 - [x] Runtime diagnostics report storage writability, metadata file validity, adapter registration, scheduler state, recent failures, and open alerts.
+- [x] Ambient confidence engine integrates Gmail, Google Calendar, Android selected-thread bronze ingest, local Ollama evaluation, high/medium/low routing, and approve/edit/ignore human review.
 
 ---
 
 ## Current State (Audit)
 
 - **Repository:** Single-service FastAPI app with static Admin UI and pytest suite.
-- **Implemented:** NFL/Sleeper adapter, bronze persistence, silver/gold transforms, sleeper-stream-scribe API, recommendation endpoint, table browsing, schema/freshness/storage metadata, source onboarding for files/API JSON, lineage, quality rules/results with failed-row samples, schema-aware quality authoring, alerts, webhook alert delivery, persisted jobs/runs, local due-job scheduler with cron-style scheduling, runtime diagnostics, local storage retention controls, metadata import/export bundles, low-code model previews, and materialized model outputs.
-- **Runtime controls:** Due jobs run in the API process by default. Set `FOUNDRY_SCHEDULER_ENABLED=0` to disable the loop, or `FOUNDRY_SCHEDULER_INTERVAL_SECONDS` to change the polling interval.
+- **Implemented:** NFL/Sleeper adapter, bronze persistence, silver/gold transforms, sleeper-stream-scribe API, recommendation endpoint, table browsing, schema/freshness/storage metadata, source onboarding for files/API JSON, Gmail/Calendar/Android ambient adapters, local Ollama confidence routing, ambient human review, lineage, quality rules/results with failed-row samples, schema-aware quality authoring, alerts, webhook alert delivery, persisted jobs/runs, local due-job scheduler with cron-style scheduling, runtime diagnostics, local storage retention controls, metadata import/export bundles, low-code model previews, and materialized model outputs.
+- **Runtime controls:** Due jobs run in the API process by default. Startup ensures default weekly ingest jobs exist and runs overdue work before the normal scheduler loop. Set `FOUNDRY_SCHEDULER_ENABLED=0` to disable the loop, or `FOUNDRY_SCHEDULER_INTERVAL_SECONDS` to change the polling interval.
 - **Technical debt:** Source onboarding is intentionally simple; metadata bundles do not include bronze/model data files; alert delivery is webhook-based and does not include SMTP/email account setup yet.
 - **Next product risk:** Avoid drifting back toward SQL-first/developer-first workflows. New features should keep tables, models, rules, jobs, alerts, lineage, and storage as the primary objects.

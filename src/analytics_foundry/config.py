@@ -41,3 +41,26 @@ def scheduler_interval_seconds() -> float:
         return max(1.0, float(raw))
     except ValueError:
         return 60.0
+
+
+def get_ambient_ollama_base_url() -> str:
+    """Return the Ollama base URL used by ambient confidence evaluation."""
+    return os.environ.get("AMBIENT_OLLAMA_BASE_URL", "http://localhost:11434").strip() or "http://localhost:11434"
+
+
+def get_ambient_ollama_model() -> str | None:
+    """Return the optional default Ollama model for ambient evaluation."""
+    value = os.environ.get("AMBIENT_OLLAMA_MODEL")
+    if value is None or not value.strip():
+        return None
+    return value.strip()
+
+
+def get_google_credentials_path() -> str:
+    """Return local OAuth client credentials path for Google Workspace adapters."""
+    return os.environ.get("FOUNDRY_GOOGLE_CREDENTIALS_PATH", "google_credentials.json")
+
+
+def get_google_token_dir() -> str:
+    """Return local OAuth token directory for Google Workspace adapters."""
+    return os.environ.get("FOUNDRY_GOOGLE_TOKEN_DIR", ".foundry_google_tokens")

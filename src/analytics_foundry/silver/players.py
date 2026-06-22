@@ -39,7 +39,7 @@ def _to_silver_player(rec: Dict[str, Any]) -> Dict[str, Any]:
         return {}
     return {
         "player_id": str(pid),
-        "name": str(rec.get("display_name") or rec.get("name") or ""),
+        "name": str(rec.get("full_name") or rec.get("display_name") or rec.get("name") or ""),
         "position": str(rec.get("position") or ""),
         "team": str(rec.get("team") or ""),
         "status": str(rec.get("status") or ""),
