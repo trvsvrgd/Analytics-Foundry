@@ -1,8 +1,7 @@
 """Second adapter: mock/fixture source to prove pluggability. Writes to bronze without changing core pipeline."""
 
-from typing import Any, Dict, List
+from typing import Any
 
-from analytics_foundry.adapters.protocol import SourceAdapter
 from analytics_foundry.bronze import store as bronze_store
 
 
@@ -11,7 +10,7 @@ class MockFixtureAdapter:
 
     SOURCE_ID = "mock_fixture"
 
-    def __init__(self, records: List[Dict[str, Any]] | None = None, table: str = "events"):
+    def __init__(self, records: list[dict[str, Any]] | None = None, table: str = "events"):
         self._records = records or []
         self._table = table
 

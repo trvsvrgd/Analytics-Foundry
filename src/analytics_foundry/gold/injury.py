@@ -1,11 +1,11 @@
 """Gold: injury report for API. Reads from silver; TECH_SPEC shape: player_id, status, updated_at?."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from analytics_foundry.silver import injuries as silver_injuries
 
 
-def get_injury_report(league_id: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_injury_report(league_id: str | None = None) -> list[dict[str, Any]]:
     """Return injury report: list of {player_id, status, updated_at?} from silver injuries."""
     injuries_list = silver_injuries.get_injuries()
     out = []

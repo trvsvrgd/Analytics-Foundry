@@ -9,8 +9,16 @@ Personal low-code ETL workbench: medallion architecture (bronze -> silver -> gol
 ## Run tests
 
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 python -m pytest
+python -m pytest --cov=analytics_foundry --cov-report=term-missing
+```
+
+Lint and types:
+
+```bash
+python -m ruff check src tests
+python -m mypy src/analytics_foundry
 ```
 
 ## Run API
@@ -29,10 +37,15 @@ The app runs locally. Bronze data and workbench metadata are stored in the local
 - **Retention cleanup:** The Storage tab can preview and delete Foundry-owned bronze table files, materialized model files, and append-only run-history files by age and scope.
 - **Metadata portability:** `/admin/export` and `/admin/import` move workbench metadata between local data roots. Bundles include saved sources, jobs, quality rules, models, alerts, and alert delivery targets, with optional run/result/delivery history.
 - **Default league:** Set `FOUNDRY_DEFAULT_LEAGUE_ID` to override the default Sleeper league used when API requests omit `league_id`. Built-in default: `1261894762944802816`.
-- **Scheduler:** Due jobs run in the API process by default. Jobs support manual, interval, hourly, daily-at-time, weekly-at-time, and five-field cron-style schedules evaluated in UTC. Set `FOUNDRY_SCHEDULER_ENABLED=0` to disable, or `FOUNDRY_SCHEDULER_INTERVAL_SECONDS` to change the polling interval.
+- **Multi-tenant (optional):** Set `FOUNDRY_TENANT_ID` to isolate data under `{FOUNDRY_DATA_DIR}/tenants/{tenant_id}/`.
+- **Operations:** `GET /health`, `GET /ready`, and optional `GET /metrics` (set `FOUNDRY_PROMETHEUS=1`). See **DEPLOYMENT.md** for systemd and scheduling.
+- **Fantasy manager data product:** `/recommendations/manager-brief` packages gold waiver, trade, injury, roster, lineup, and matchup model outputs for Sleeperstream Scribe.
+- **Scheduler:** Due jobs run in the API process by default. Jobs support manual, interval, hourly, daily-at-time, weekly-at-time, and five-field cron-style schedules evaluated in UTC. Startup seeds default weekly ingest jobs for NFL/Sleeper broad data, the default Sleeper league, the NFL weekly feed, and AI Daily Brief transcripts. If any enabled job is overdue when the API starts, startup catch-up runs it immediately and reports status in the Admin UI. Set `FOUNDRY_SCHEDULER_ENABLED=0` to disable, or `FOUNDRY_SCHEDULER_INTERVAL_SECONDS` to change the polling interval.
 - **Diagnostics:** `/admin/diagnostics` reports storage writability, metadata file health, adapter registration, scheduler state, recent failed runs, and open alerts.
 - **Admin auth:** Set `FOUNDRY_ADMIN_API_KEY` to require a key for `/admin` and `/admin/*`. Supply it with the `X-Foundry-Admin-Key` header, an `admin_key` query parameter, or the cookie set by visiting `/admin?admin_key=...`.
-- **Startup:** The API loads existing bronze data from that directory; new ingest appends to the same files. The Admin UI at `/admin` reads sources, tables, models, quality rules, jobs, alerts, and storage metadata through the API.
+- **Ambient confidence:** Install `../ambient-context-engine` in editable mode, set `AMBIENT_OLLAMA_MODEL` or choose an Ollama model in the Admin UI, and run ambient evaluation from the Ambient tab or an `ambient_evaluate` job.
+- **Google adapters:** Gmail and Calendar adapters use local OAuth. Set `FOUNDRY_GOOGLE_CREDENTIALS_PATH` and optionally `FOUNDRY_GOOGLE_TOKEN_DIR`; install the `google` extra when using live Google APIs.
+- **Startup:** The API validates the data directory, configures logging, loads bronze from disk, registers all adapters, and runs the local scheduler. Overdue scheduled work is executed once before the normal scheduler loop.
 
 Frontend: set `VITE_API_BASE_URL` to this backend's base URL (CORS enabled).
 
@@ -40,12 +53,14 @@ Frontend: set `VITE_API_BASE_URL` to this backend's base URL (CORS enabled).
 
 A local workbench UI is served at **`/admin`** (e.g. `http://localhost:8000/admin`). It lets you:
 
-- Enter one or more league IDs, validate them, and trigger league or broad NFL ingest.
+- Enter one or more league IDs, validate them, track them in the registry (`meta/leagues.json`), and trigger league or broad NFL ingest.
 - Preview and ingest personal sources from uploaded files, server-local file paths, or public JSON API URLs.
+- Pull personal Gmail, Google Calendar, and selected Android message-thread records into bronze through registered adapters and bridge endpoints.
 - Browse medallion tables and model previews with schema, row count, freshness, storage path, sample rows, and direct lineage.
+- Evaluate unstructured ambient bronze records with a local Ollama model, promote high-confidence records to gold, and review/edit/ignore medium-confidence records in the Ambient tab.
 - Build and materialize low-code model definitions from JSON-backed operations such as filter, select, rename, cast, deduplicate, calculate, group, join, and union.
 - Attach data quality rules to tables using schema-aware column pickers, type-aware rule params, and templates such as required field, unique key, accepted values, numeric range, regex, freshness, row count drift, and referential checks.
-- Create persisted job definitions, choose manual/interval/hourly/daily/weekly/cron-style schedules, run jobs manually or through the local due-job scheduler, and inspect durable run history.
+- Create persisted job definitions, choose manual/interval/hourly/daily/weekly/cron-style schedules, run jobs manually or through the local due-job scheduler, inspect durable run history, and see when startup catch-up is running missed jobs.
 - Review in-app alerts created from failed jobs and failed quality checks, and configure generic webhook or Slack-style webhook delivery targets.
 - Inspect runtime diagnostics, local storage allocation, table-file sizes, retention candidates, scoped cleanup actions, and import/export bundles for workbench metadata.
 - List and view SQL transformation definitions in the advanced SQL tab.

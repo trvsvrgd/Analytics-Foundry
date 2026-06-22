@@ -5,3 +5,8 @@ httpx>=0.24
 [api]
 fastapi>=0.100
 uvicorn[standard]>=0.22
+
+[google]
+google-api-python-client>=2.0
+google-auth-oauthlib>=1.0
+google-auth-httplib2>=0.1

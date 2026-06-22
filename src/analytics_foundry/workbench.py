@@ -21,7 +21,7 @@ from urllib.request import Request, urlopen
 
 from analytics_foundry.adapters import get_adapter
 from analytics_foundry.bronze import store as bronze_store
-from analytics_foundry.config import scheduler_enabled, scheduler_interval_seconds
+from analytics_foundry.config import get_default_league_id, scheduler_enabled, scheduler_interval_seconds
 
 RowsResolver = Callable[[str], List[Dict[str, Any]]]
 
@@ -39,8 +39,61 @@ _BUNDLE_VERSION = 1
 _MEMORY_JSON: Dict[str, List[Dict[str, Any]]] = {name: [] for name in _JSON_COLLECTIONS}
 _MEMORY_JSONL: Dict[str, List[Dict[str, Any]]] = {name: [] for name in _JSONL_COLLECTIONS}
 _MEMORY_MODEL_ROWS: Dict[str, List[Dict[str, Any]]] = {}
+_MEMORY_AMBIENT_ROWS: Dict[tuple[str, str], List[Dict[str, Any]]] = {}
 ALERT_DELIVERY_KINDS = ["webhook", "slack_webhook"]
 ALERT_SEVERITY_ORDER = {"info": 0, "warning": 1, "error": 2}
+AMBIENT_SILVER_TABLE = "ambient_candidates"
+AMBIENT_GOLD_TABLE = "ambient_actions"
+DEFAULT_DIAGNOSTIC_ADAPTER_IDS = [
+    "nfl_sleeper",
+    "nfl_weekly_feed",
+    "ai_daily_brief",
+    "gmail",
+    "google_calendar",
+    "android_messages",
+]
+DEFAULT_INGEST_JOBS = [
+    {
+        "default_key": "weekly_nfl_sleeper_broad",
+        "name": "Weekly NFL/Sleeper broad ingest",
+        "kind": "adapter_ingest",
+        "target": {"source_id": "nfl_sleeper", "params": {}},
+        "schedule": {"type": "weekly", "day_of_week": "monday", "time": "09:00"},
+        "retry_count": 1,
+        "retry_delay_seconds": 300,
+        "enabled": True,
+    },
+    {
+        "default_key": "weekly_nfl_feed",
+        "name": "Weekly NFL analytics feed ingest",
+        "kind": "adapter_ingest",
+        "target": {"source_id": "nfl_weekly_feed", "params": {}},
+        "schedule": {"type": "weekly", "day_of_week": "monday", "time": "09:15"},
+        "retry_count": 1,
+        "retry_delay_seconds": 300,
+        "enabled": True,
+    },
+    {
+        "default_key": "weekly_default_league",
+        "name": "Weekly default Sleeper league ingest",
+        "kind": "league_ingest",
+        "target": {"league_id": "__DEFAULT_LEAGUE_ID__"},
+        "schedule": {"type": "weekly", "day_of_week": "monday", "time": "09:20"},
+        "retry_count": 1,
+        "retry_delay_seconds": 300,
+        "enabled": True,
+    },
+    {
+        "default_key": "weekly_ai_daily_brief",
+        "name": "Weekly AI Daily Brief transcript ingest",
+        "kind": "adapter_ingest",
+        "target": {"source_id": "ai_daily_brief", "params": {}},
+        "schedule": {"type": "weekly", "day_of_week": "monday", "time": "09:30"},
+        "retry_count": 1,
+        "retry_delay_seconds": 300,
+        "enabled": True,
+    },
+]
 
 SOURCE_CONNECTOR_TEMPLATES = [
     {
@@ -155,8 +208,24 @@ _CORE_LINEAGE: Dict[str, List[str]] = {
     "silver:league": ["bronze:nfl_sleeper.league"],
     "silver:rosters": ["bronze:nfl_sleeper.rosters"],
     "silver:injuries": ["silver:players"],
+    "silver:weekly_matchups": ["bronze:nfl_weekly_feed.weekly_matchups"],
+    "silver:team_stats": ["bronze:nfl_weekly_feed.team_stats"],
+    "silver:player_weekly_stats": ["bronze:nfl_weekly_feed.player_weekly_stats"],
+    "silver:depth_charts": ["bronze:nfl_weekly_feed.depth_charts"],
+    "silver:vegas_weather": ["bronze:nfl_weekly_feed.vegas_weather"],
+    "silver:faab_history": ["bronze:nfl_weekly_feed.faab_history"],
     "gold:available_players": ["silver:players", "silver:rosters"],
     "gold:injury": ["silver:injuries"],
+    "gold:defense_projections": ["silver:weekly_matchups", "silver:team_stats", "silver:players", "silver:rosters"],
+    "gold:win_probability": ["silver:weekly_matchups", "silver:team_stats", "silver:players", "silver:rosters"],
+    "gold:tuesday_waiver_targets": ["silver:player_weekly_stats", "silver:players"],
+    "gold:tuesday_trade_regression": ["silver:player_weekly_stats", "silver:players", "silver:rosters"],
+    "gold:tuesday_injury_cascade": ["silver:depth_charts", "silver:players"],
+    "gold:tuesday_roster_utility": ["silver:player_weekly_stats", "silver:depth_charts", "silver:players", "silver:rosters"],
+    "gold:tuesday_waiver_bids": ["silver:faab_history", "gold:tuesday_waiver_targets", "silver:rosters"],
+    "silver:ai_daily_brief_cleaned": ["bronze:ai_daily_brief.transcripts"],
+    "gold:mba_coursework_impact": ["silver:ai_daily_brief_cleaned"],
+    "gold:ai_platform_product_strategy": ["silver:ai_daily_brief_cleaned"],
 }
 
 
@@ -280,6 +349,13 @@ def clear() -> None:
     if model_root is not None and model_root.is_dir():
         for path in model_root.glob("*.jsonl"):
             path.unlink()
+    _MEMORY_AMBIENT_ROWS.clear()
+    root = bronze_store.get_data_root()
+    if root is not None:
+        for layer, name in (("silver", AMBIENT_SILVER_TABLE), ("gold", AMBIENT_GOLD_TABLE)):
+            path = root / layer / f"{name}.jsonl"
+            if path.is_file():
+                path.unlink()
 
 
 def export_bundle(include_history: bool = False) -> Dict[str, Any]:
@@ -438,7 +514,7 @@ def data_root_info() -> Dict[str, Any]:
         "control_plane_bytes": _dir_size(control_path),
         "model_bytes": _dir_size(model_path),
         "retention_scopes": RETENTION_SCOPES,
-        "table_files": [item for item in inventory if item["scope"] in {"bronze", "models"}],
+        "table_files": [item for item in inventory if item["scope"] in {"bronze", "silver", "gold", "models"}],
         "history_files": [item for item in inventory if item["scope"] == "run_history"],
     }
 
@@ -451,7 +527,7 @@ def runtime_diagnostics(
     current = _now() if now is None else float(now)
     storage = _storage_diagnostics()
     metadata = _metadata_diagnostics()
-    adapters = _adapter_diagnostics(adapter_ids or ["nfl_sleeper"])
+    adapters = _adapter_diagnostics(adapter_ids or DEFAULT_DIAGNOSTIC_ADAPTER_IDS)
     scheduler = _scheduler_diagnostics(current)
     activity = _activity_diagnostics()
     sections = [storage, metadata, adapters, scheduler, activity]
@@ -669,6 +745,19 @@ def storage_inventory() -> List[Dict[str, Any]]:
             )
             if item is not None:
                 items.append(item)
+
+    for layer, name in (("silver", AMBIENT_SILVER_TABLE), ("gold", AMBIENT_GOLD_TABLE)):
+        path = root / layer / f"{name}.jsonl"
+        item = _storage_file_item(
+            root,
+            path,
+            layer,
+            table_id=table_id(layer, name),
+            table=name,
+            label=name,
+        )
+        if item is not None:
+            items.append(item)
 
     control_root = root / "control_plane"
     if control_root.is_dir():
@@ -1235,6 +1324,188 @@ def bronze_storage_path(source_id: str, table: str) -> str | None:
     return str(root / "bronze" / source_id / f"{table}.jsonl")
 
 
+def ambient_storage_path(layer: str, name: str) -> str | None:
+    """Return storage path for persisted ambient silver/gold tables."""
+    if layer not in {"silver", "gold"}:
+        raise ValueError("Ambient tables must be silver or gold")
+    root = bronze_store.get_data_root()
+    if root is None:
+        return None
+    return str(root / layer / f"{name}.jsonl")
+
+
+def get_silver_ambient_candidates(status: str | None = None) -> List[Dict[str, Any]]:
+    """Return persisted ambient extraction candidates."""
+    rows = _read_ambient_rows("silver", AMBIENT_SILVER_TABLE)
+    if status is not None:
+        rows = [row for row in rows if row.get("review_status") == status]
+    return rows
+
+
+def get_gold_ambient_actions() -> List[Dict[str, Any]]:
+    """Return promoted or human-approved ambient actions."""
+    return _read_ambient_rows("gold", AMBIENT_GOLD_TABLE)
+
+
+def persist_ambient_candidates(
+    candidates: List[Dict[str, Any]],
+    source_table_id: str,
+    model: str | None,
+) -> List[Dict[str, Any]]:
+    """Append high/medium ambient candidates to silver storage."""
+    ts = _now()
+    existing = _read_ambient_rows("silver", AMBIENT_SILVER_TABLE)
+    stored = []
+    for candidate in candidates:
+        groundedness = str(candidate.get("groundedness") or "")
+        if groundedness.lower() not in {"high", "medium"}:
+            continue
+        record = {
+            "id": _new_id("ambient_candidate"),
+            "source_table_id": source_table_id,
+            "model": model,
+            "route": "promote" if groundedness.lower() == "high" else "review",
+            "review_status": "auto_promoted" if groundedness.lower() == "high" else "open",
+            "alert_id": None,
+            "created_at": ts,
+            "updated_at": ts,
+            **dict(candidate),
+        }
+        stored.append(record)
+        existing.append(record)
+    _write_ambient_rows("silver", AMBIENT_SILVER_TABLE, existing)
+    return stored
+
+
+def promote_ambient_candidate(
+    candidate_id: str,
+    updates: Dict[str, Any] | None = None,
+    reviewer_note: str | None = None,
+    status: str = "approved",
+) -> Dict[str, Any]:
+    """Approve one silver candidate into gold, optionally with edited fields."""
+    candidate = _update_ambient_candidate(
+        candidate_id,
+        {
+            **(updates or {}),
+            "review_status": status,
+            "reviewer_note": reviewer_note,
+            "reviewed_at": _now(),
+        },
+    )
+    action = {
+        "id": f"ambient_action_{candidate_id}",
+        "candidate_id": candidate_id,
+        "created_at": _now(),
+        "updated_at": _now(),
+        **_ambient_action_payload(candidate),
+    }
+    actions = get_gold_ambient_actions()
+    for idx, existing in enumerate(actions):
+        if existing.get("candidate_id") == candidate_id:
+            actions[idx] = {**existing, **action, "created_at": existing.get("created_at") or action["created_at"]}
+            _write_ambient_rows("gold", AMBIENT_GOLD_TABLE, actions)
+            _ack_candidate_alert(candidate)
+            return actions[idx]
+    actions.append(action)
+    _write_ambient_rows("gold", AMBIENT_GOLD_TABLE, actions)
+    _ack_candidate_alert(candidate)
+    return action
+
+
+def ignore_ambient_candidate(candidate_id: str, reviewer_note: str | None = None) -> Dict[str, Any]:
+    """Mark one silver candidate ignored so it never reaches gold."""
+    candidate = _update_ambient_candidate(
+        candidate_id,
+        {
+            "review_status": "ignored",
+            "reviewer_note": reviewer_note,
+            "reviewed_at": _now(),
+        },
+    )
+    _ack_candidate_alert(candidate)
+    return candidate
+
+
+def attach_ambient_alert(candidate_id: str, alert_id: str) -> Dict[str, Any]:
+    """Attach an alert id to a medium-confidence candidate."""
+    return _update_ambient_candidate(candidate_id, {"alert_id": alert_id})
+
+
+def _ambient_action_payload(candidate: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "entity_type": candidate.get("entity_type"),
+        "title": candidate.get("title"),
+        "description": candidate.get("description"),
+        "start_time": candidate.get("start_time"),
+        "due_time": candidate.get("due_time"),
+        "participants": candidate.get("participants") or [],
+        "location": candidate.get("location"),
+        "groundedness": candidate.get("groundedness"),
+        "confidence_reason": candidate.get("confidence_reason"),
+        "evidence": candidate.get("evidence") or [],
+        "source_record_ids": candidate.get("source_record_ids") or [],
+        "source_table_id": candidate.get("source_table_id"),
+        "model": candidate.get("model"),
+        "review_status": candidate.get("review_status"),
+    }
+
+
+def _update_ambient_candidate(candidate_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    rows = get_silver_ambient_candidates()
+    for idx, row in enumerate(rows):
+        if row.get("id") == candidate_id:
+            updated = dict(row)
+            updated.update({key: value for key, value in updates.items() if value is not None})
+            updated["updated_at"] = _now()
+            rows[idx] = updated
+            _write_ambient_rows("silver", AMBIENT_SILVER_TABLE, rows)
+            return updated
+    raise KeyError(candidate_id)
+
+
+def _ack_candidate_alert(candidate: Dict[str, Any]) -> None:
+    alert_id = candidate.get("alert_id")
+    if alert_id:
+        acknowledge_alert(str(alert_id))
+
+
+def _read_ambient_rows(layer: str, name: str) -> List[Dict[str, Any]]:
+    key = (layer, name)
+    path_value = ambient_storage_path(layer, name)
+    if path_value is None:
+        return [dict(item) for item in _MEMORY_AMBIENT_ROWS.get(key, [])]
+    path = Path(path_value)
+    if not path.is_file():
+        return []
+    rows = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            item = json.loads(line)
+            if isinstance(item, dict):
+                rows.append(item)
+    except (json.JSONDecodeError, OSError):
+        return []
+    _MEMORY_AMBIENT_ROWS[key] = [dict(item) for item in rows]
+    return rows
+
+
+def _write_ambient_rows(layer: str, name: str, rows: List[Dict[str, Any]]) -> None:
+    key = (layer, name)
+    path_value = ambient_storage_path(layer, name)
+    if path_value is None:
+        _MEMORY_AMBIENT_ROWS[key] = [dict(item) for item in rows]
+        return
+    path = Path(path_value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [json.dumps(row, ensure_ascii=False, sort_keys=True) for row in rows]
+    path.write_text(("\n".join(lines) + "\n") if lines else "", encoding="utf-8")
+    _MEMORY_AMBIENT_ROWS[key] = [dict(item) for item in rows]
+
+
 def infer_schema(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Infer lightweight schema metadata from JSON-like rows."""
     rows_list = list(rows)
@@ -1348,6 +1619,21 @@ def list_lineage_edges() -> List[Dict[str, str]]:
         target = model["target_table_id"]
         for upstream in _model_source_tables(model):
             edges.append({"from": upstream, "to": target, "kind": "model"})
+    candidate_sources = {
+        str(candidate.get("source_table_id"))
+        for candidate in get_silver_ambient_candidates()
+        if candidate.get("source_table_id")
+    }
+    for source_table in candidate_sources:
+        edges.append({"from": source_table, "to": table_id("silver", AMBIENT_SILVER_TABLE), "kind": "ambient"})
+    if get_gold_ambient_actions():
+        edges.append(
+            {
+                "from": table_id("silver", AMBIENT_SILVER_TABLE),
+                "to": table_id("gold", AMBIENT_GOLD_TABLE),
+                "kind": "ambient",
+            }
+        )
     return edges
 
 
@@ -1365,9 +1651,82 @@ def lineage_for_table(stable_table_id: str) -> Dict[str, List[str]]:
 def create_job(payload: Dict[str, Any]) -> Dict[str, Any]:
     jobs = _read_json_collection("jobs")
     ts = _now()
+    job = _job_from_payload(payload, ts)
+    jobs.append(job)
+    _write_json_collection("jobs", jobs)
+    return job
+
+
+def ensure_default_ingest_jobs(now: float | None = None) -> Dict[str, Any]:
+    """Create the built-in weekly ingest jobs if they are missing."""
+    jobs = _read_json_collection("jobs")
+    changed = _normalize_existing_default_jobs(jobs)
+    existing_keys = {str(job.get("default_key")) for job in jobs if job.get("default_key")}
+    existing_targets = {
+        _job_target_key(job)
+        for job in jobs
+        if _job_target_key(job)[1]
+    }
+    ts = _now() if now is None else float(now)
+    created = []
+    for payload in default_ingest_job_templates():
+        default_key = str(payload["default_key"])
+        target_key = _job_target_key(payload)
+        if default_key in existing_keys or target_key in existing_targets:
+            continue
+        job = _job_from_payload(payload, ts)
+        jobs.append(job)
+        created.append(job)
+        existing_keys.add(default_key)
+        existing_targets.add(target_key)
+    if created or changed:
+        _write_json_collection("jobs", jobs)
+    return {
+        "created_count": len(created),
+        "existing_count": len(jobs) - len(created),
+        "created": created,
+        "jobs": jobs,
+    }
+
+
+def _normalize_existing_default_jobs(jobs: List[Dict[str, Any]]) -> bool:
+    changed = False
+    for job in jobs:
+        target = job.get("target") or {}
+        if target.get("league_id") == "__DEFAULT_LEAGUE_ID__":
+            target["league_id"] = get_default_league_id()
+            job["target"] = target
+            job["updated_at"] = _now()
+            changed = True
+    return changed
+
+
+def default_ingest_job_templates() -> List[Dict[str, Any]]:
+    """Return copies of built-in ingest job templates for API/UI inspection."""
+    jobs = [json.loads(json.dumps(job)) for job in DEFAULT_INGEST_JOBS]
+    for job in jobs:
+        target = job.get("target") or {}
+        if target.get("league_id") == "__DEFAULT_LEAGUE_ID__":
+            target["league_id"] = get_default_league_id()
+    return jobs
+
+
+def _job_target_key(job: Dict[str, Any]) -> tuple[str, str]:
+    target = job.get("target") or {}
+    target_value = (
+        target.get("source_id")
+        or target.get("league_id")
+        or target.get("table_id")
+        or target.get("model_id")
+        or ""
+    )
+    return (str(job.get("kind") or ""), str(target_value))
+
+
+def _job_from_payload(payload: Dict[str, Any], ts: float) -> Dict[str, Any]:
     schedule = _normalize_schedule(payload.get("schedule") or {"type": "manual"})
     configured_next = payload.get("next_run_at")
-    job = {
+    job: Dict[str, Any] = {
         "id": _new_id("job"),
         "name": str(payload.get("name") or payload.get("kind") or "Untitled job"),
         "kind": str(payload.get("kind") or "quality_check"),
@@ -1384,8 +1743,8 @@ def create_job(payload: Dict[str, Any]) -> Dict[str, Any]:
         "last_run_at": None,
         "next_run_at": float(configured_next) if configured_next is not None else _next_run_at(schedule, ts),
     }
-    jobs.append(job)
-    _write_json_collection("jobs", jobs)
+    if payload.get("default_key"):
+        job["default_key"] = str(payload["default_key"])
     return job
 
 

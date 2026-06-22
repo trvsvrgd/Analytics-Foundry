@@ -5,36 +5,52 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Foundry Admin Workbench</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
     :root {
-      --bg: #f6f7f9;
-      --surface: #ffffff;
-      --surface-2: #eef2f5;
-      --border: #d6dce3;
-      --border-strong: #aeb8c4;
-      --text: #17202a;
-      --muted: #657282;
-      --accent: #2563eb;
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-2: #1f2937;
+      --border: #374151;
+      --border-strong: #4b5563;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
       --accent-ink: #ffffff;
-      --success: #15803d;
-      --warning: #a16207;
-      --danger: #b91c1c;
-      --shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.6);
+      --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+      --radius: 12px;
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
       background: var(--bg);
+      background-image:
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.08) 0px, transparent 50%),
+        radial-gradient(at 50% 0%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, rgba(239, 68, 68, 0.05) 0px, transparent 50%);
+      background-attachment: fixed;
       color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.45;
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
     }
 
     .shell {
       width: min(1440px, 100%);
       margin: 0 auto;
-      padding: 20px;
+      padding: 30px 20px;
     }
 
     header {
@@ -42,144 +58,225 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      margin-bottom: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, var(--accent) 0%, #1d4ed8 100%);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 800;
+      color: white;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
     }
 
     h1, h2, h3 {
       margin: 0;
-      letter-spacing: 0;
+      font-weight: 700;
+      letter-spacing: -0.025em;
     }
 
-    h1 { font-size: 24px; font-weight: 700; }
-    h2 { font-size: 18px; font-weight: 650; }
-    h3 { font-size: 15px; font-weight: 650; }
+    h1 {
+      font-size: 26px;
+      background: linear-gradient(to right, #ffffff, #9ca3af);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    h2 { font-size: 20px; margin-bottom: 8px; color: #f3f4f6; }
+    h3 { font-size: 16px; font-weight: 600; color: #d1d5db; margin-top: 16px; margin-bottom: 8px; }
 
     .top-status {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 10px;
       justify-content: flex-end;
     }
 
     .pill {
       display: inline-flex;
       align-items: center;
-      min-height: 28px;
+      min-height: 32px;
       border: 1px solid var(--border);
       border-radius: 999px;
-      padding: 4px 10px;
+      padding: 6px 14px;
       background: var(--surface);
       color: var(--muted);
       font-size: 13px;
+      font-weight: 500;
       white-space: nowrap;
+    }
+
+    .pill#alertCount {
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.05);
     }
 
     nav {
       display: flex;
-      gap: 6px;
+      gap: 8px;
       overflow-x: auto;
-      padding: 4px;
+      padding: 6px;
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       background: var(--surface);
       box-shadow: var(--shadow);
-      margin-bottom: 16px;
+      margin-bottom: 24px;
+      scrollbar-width: none;
+    }
+
+    nav::-webkit-scrollbar {
+      display: none;
     }
 
     nav button {
       flex: 0 0 auto;
-      min-height: 34px;
-      padding: 0 12px;
+      min-height: 38px;
+      padding: 0 16px;
       border: 1px solid transparent;
-      border-radius: 6px;
+      border-radius: 8px;
       background: transparent;
       color: var(--muted);
       cursor: pointer;
       font-weight: 600;
+      font-size: 14px;
+      transition: var(--transition);
+    }
+
+    nav button:hover {
+      color: #fff;
+      background: var(--surface-2);
     }
 
     nav button.active {
       background: var(--accent);
       color: var(--accent-ink);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     }
 
     .view { display: none; }
-    .view.active { display: block; }
+    .view.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
 
     .grid {
       display: grid;
       grid-template-columns: repeat(12, 1fr);
-      gap: 14px;
+      gap: 20px;
     }
 
     .panel {
       grid-column: span 12;
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 8px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
-      padding: 14px;
+      padding: 24px;
+      position: relative;
+      overflow: hidden;
     }
 
-    .panel.compact { padding: 10px; }
+    .panel.compact { padding: 16px; }
+    .span-1 { grid-column: span 1; }
+    .span-2 { grid-column: span 2; }
+    .span-3 { grid-column: span 3; }
     .span-4 { grid-column: span 4; }
     .span-5 { grid-column: span 5; }
     .span-6 { grid-column: span 6; }
     .span-7 { grid-column: span 7; }
     .span-8 { grid-column: span 8; }
+    .span-9 { grid-column: span 9; }
+    .span-10 { grid-column: span 10; }
+    .span-11 { grid-column: span 11; }
+    .span-12 { grid-column: span 12; }
 
     .toolbar {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 10px;
+      margin-top: 16px;
     }
 
     .form-grid {
       display: grid;
       grid-template-columns: repeat(12, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 12px;
+      gap: 16px;
+      margin-top: 16px;
     }
 
     label {
       display: grid;
-      gap: 5px;
+      gap: 6px;
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 650;
+      font-size: 11px;
+      font-weight: 700;
       text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     input, select, textarea {
       width: 100%;
-      min-height: 36px;
-      border: 1px solid var(--border-strong);
-      border-radius: 6px;
-      padding: 7px 9px;
-      background: #fff;
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      background: var(--surface-2);
       color: var(--text);
       font: inherit;
-      text-transform: none;
+      font-size: 14px;
+      transition: var(--transition);
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
     }
 
     textarea {
-      min-height: 78px;
+      min-height: 100px;
       resize: vertical;
-      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-family: var(--font-mono);
       font-size: 13px;
     }
 
     button {
-      min-height: 36px;
-      border: 1px solid var(--border-strong);
-      border-radius: 6px;
-      padding: 0 12px;
-      background: var(--surface);
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 18px;
+      background: var(--surface-2);
       color: var(--text);
       cursor: pointer;
-      font-weight: 650;
+      font-weight: 600;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: var(--transition);
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--border);
+      color: #fff;
     }
 
     button.primary {
@@ -188,10 +285,21 @@
       color: var(--accent-ink);
     }
 
+    button.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+
     button.danger {
       border-color: var(--danger);
+      background: rgba(239, 68, 68, 0.1);
+      color: #f87171;
+    }
+
+    button.danger:hover:not(:disabled) {
       background: var(--danger);
       color: #fff;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     }
 
     button.link {
@@ -200,18 +308,28 @@
       border: 0;
       background: transparent;
       color: var(--accent);
+      text-decoration: none;
+    }
+
+    button.link:hover {
+      text-decoration: underline;
+      color: var(--accent-hover);
     }
 
     button:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
     }
 
     .status {
-      min-height: 22px;
-      margin-top: 8px;
+      min-height: 24px;
+      margin-top: 12px;
       color: var(--muted);
       font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .status.ok { color: var(--success); }
@@ -219,57 +337,85 @@
 
     .asset-list {
       display: grid;
-      gap: 8px;
-      margin-top: 12px;
+      gap: 10px;
+      margin-top: 16px;
     }
 
     .asset-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
+      gap: 16px;
       align-items: center;
-      min-height: 52px;
-      padding: 9px 10px;
+      min-height: 60px;
+      padding: 12px 16px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--surface);
+      background: rgba(17, 24, 39, 0.5);
+      transition: var(--transition);
+    }
+
+    .asset-row:hover {
+      border-color: var(--border-strong);
+      background: rgba(17, 24, 39, 0.8);
+      transform: translateX(2px);
     }
 
     .asset-title {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-weight: 650;
+      font-weight: 600;
+      color: #f3f4f6;
     }
 
     .asset-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 4px;
+      gap: 12px;
+      margin-top: 6px;
       color: var(--muted);
       font-size: 12px;
+    }
+
+    .asset-meta span {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .asset-meta span:not(:last-child)::after {
+      content: '•';
+      margin-left: 12px;
+      color: var(--border);
     }
 
     .metric {
       display: grid;
       gap: 4px;
-      min-height: 72px;
+      min-height: 80px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 10px;
+      padding: 14px;
       background: var(--surface-2);
     }
 
+    .metric span {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
     .metric strong {
-      font-size: 19px;
-      line-height: 1.1;
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
     }
 
     .split {
       display: grid;
-      grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.4fr);
-      gap: 14px;
+      grid-template-columns: minmax(320px, 0.9fr) minmax(380px, 1.4fr);
+      gap: 20px;
     }
 
     table {
@@ -280,66 +426,203 @@
 
     th, td {
       border-bottom: 1px solid var(--border);
-      padding: 8px 9px;
+      padding: 12px;
       text-align: left;
-      vertical-align: top;
+      vertical-align: middle;
     }
 
     th {
-      color: var(--muted);
-      font-weight: 700;
-      background: #fafbfc;
+      color: var(--text);
+      font-weight: 600;
+      background: var(--surface-2);
     }
 
     .scroll {
-      max-height: 440px;
+      max-height: 480px;
       overflow: auto;
       border: 1px solid var(--border);
       border-radius: 8px;
-      margin-top: 12px;
+      margin-top: 16px;
+      background: var(--surface);
+    }
+
+    .scroll th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface-2);
     }
 
     pre {
       min-height: 160px;
       max-height: 420px;
       overflow: auto;
-      margin: 12px 0 0;
+      margin: 16px 0 0;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    details {
+      margin-top: 10px;
       padding: 12px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: #111827;
-      color: #e5e7eb;
-      font-size: 12px;
-      line-height: 1.45;
+      background: var(--surface-2);
+      width: 100%;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--accent);
+      outline: none;
+      user-select: none;
+    }
+
+    details[open] summary {
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    details pre {
+      margin-top: 0;
+      min-height: 0;
+      max-height: 280px;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
 
     .empty {
-      min-height: 90px;
+      min-height: 110px;
       display: grid;
       place-items: center;
-      border: 1px dashed var(--border-strong);
+      border: 1px dashed var(--border);
       border-radius: 8px;
       color: var(--muted);
-      margin-top: 12px;
+      margin-top: 16px;
+      padding: 20px;
       text-align: center;
+      font-size: 14px;
+    }
+
+    .view-header {
+      margin-bottom: 20px;
+      padding: 16px 20px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      border-left: 4px solid var(--accent);
+    }
+
+    .view-header h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 4px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .view-header p {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.5;
     }
 
     .tag {
       display: inline-flex;
       align-items: center;
-      min-height: 22px;
-      padding: 2px 7px;
+      min-height: 24px;
+      padding: 2px 10px;
       border-radius: 999px;
       border: 1px solid var(--border);
-      background: #fff;
+      background: var(--surface-2);
       color: var(--muted);
-      font-size: 12px;
-      font-weight: 650;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
-    .tag.success { color: var(--success); border-color: rgba(21, 128, 61, 0.25); }
-    .tag.warning { color: var(--warning); border-color: rgba(161, 98, 7, 0.25); }
-    .tag.danger { color: var(--danger); border-color: rgba(185, 28, 28, 0.25); }
+    .tag.success { color: var(--success); border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.05); }
+    .tag.warning { color: var(--warning); border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.05); }
+    .tag.danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.05); }
+
+    /* Onboarding Card Style */
+    .onboarding-card {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .onboarding-card h2 {
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+
+    .onboarding-card p {
+      margin: 0 0 16px 0;
+      color: #d1d5db;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .onboarding-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .onboarding-step {
+      background: rgba(17, 24, 39, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      position: relative;
+    }
+
+    .onboarding-step:hover {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: rgba(17, 24, 39, 0.6);
+    }
+
+    .onboarding-num {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      font-size: 24px;
+      font-weight: 800;
+      color: rgba(59, 130, 246, 0.2);
+      line-height: 1;
+    }
+
+    .onboarding-step h3 {
+      margin: 0 0 6px 0;
+      font-size: 14px;
+      color: #fff;
+    }
+
+    .onboarding-step p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
 
     .ops {
       display: grid;
@@ -354,29 +637,63 @@
       align-items: center;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 8px;
-      background: #fff;
+      padding: 10px;
+      background: var(--surface-2);
       font-size: 13px;
     }
 
-    .hidden { display: none !important; }
-
-    @media (max-width: 980px) {
-      .span-4, .span-5, .span-6, .span-7, .span-8 { grid-column: span 12; }
-      .split { grid-template-columns: 1fr; }
-      header { align-items: flex-start; flex-direction: column; }
-      .top-status { justify-content: flex-start; }
+    .startup-notice {
+      display: grid;
+      gap: 4px;
+      margin-bottom: 20px;
+      padding: 14px 16px;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      background: rgba(59, 130, 246, 0.08);
+      color: #dbeafe;
+      font-size: 13px;
     }
+
+    .startup-notice strong {
+      color: #fff;
+    }
+
+    .startup-notice.success {
+      border-color: rgba(16, 185, 129, 0.35);
+      border-left-color: var(--success);
+      background: rgba(16, 185, 129, 0.08);
+      color: #d1fae5;
+    }
+
+    .startup-notice.warning {
+      border-color: rgba(245, 158, 11, 0.35);
+      border-left-color: var(--warning);
+      background: rgba(245, 158, 11, 0.08);
+      color: #fef3c7;
+    }
+
+    .startup-notice.danger {
+      border-color: rgba(239, 68, 68, 0.35);
+      border-left-color: var(--danger);
+      background: rgba(239, 68, 68, 0.08);
+      color: #fee2e2;
+    }
+
+    .hidden { display: none !important; }
   </style>
 </head>
 <body>
   <div class="shell">
     <header>
-      <div>
-        <h1>Analytics Foundry</h1>
-        <div class="asset-meta">
-          <span>Low-code ETL workbench</span>
-          <span id="defaultLeagueBadge">Default league: loading</span>
+      <div class="logo-container">
+        <div class="logo-icon">F</div>
+        <div>
+          <h1>Analytics Foundry</h1>
+          <div class="asset-meta">
+            <span>Low-code ETL workbench</span>
+            <span id="defaultLeagueBadge">Default league: loading</span>
+          </div>
         </div>
       </div>
       <div class="top-status">
@@ -391,14 +708,45 @@
       <button data-view="tables">Tables</button>
       <button data-view="models">Models</button>
       <button data-view="quality">Quality</button>
+      <button data-view="ambient">Ambient</button>
       <button data-view="jobs">Jobs</button>
       <button data-view="alerts">Alerts</button>
       <button data-view="storage">Storage</button>
       <button data-view="sql">SQL</button>
     </nav>
 
+    <div id="startupNotice" class="startup-notice hidden"></div>
+
     <main>
       <section id="view-ingest" class="view active">
+        <div class="view-header">
+          <h2>Ingest Center</h2>
+          <p>Bring new data sources into your Bronze layer. Sync live NFL leagues, trigger broad player database syncs, or onboard custom local files and public JSON APIs.</p>
+        </div>
+        <div class="onboarding-card">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent); display: inline; vertical-align: middle; margin-right: 6px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            Getting Started with Analytics Foundry
+          </h2>
+          <p>Welcome to your ETL Workbench! Follow these steps to ingest, transform, and profile your NFL data:</p>
+          <div class="onboarding-steps">
+            <div class="onboarding-step">
+              <span class="onboarding-num">1</span>
+              <h3>Sync Broad NFL Data</h3>
+              <p>Click <strong>Sync broad NFL</strong> in the Batch Ingest card to load the master players database. This is required for player mappings and injury calculations.</p>
+            </div>
+            <div class="onboarding-step">
+              <span class="onboarding-num">2</span>
+              <h3>Sync League Metadata</h3>
+              <p>Enter a Sleeper League ID (e.g. <code>1261894762944802816</code>) and click <strong>Sync</strong> to fetch league rosters, matches, and configurations.</p>
+            </div>
+            <div class="onboarding-step">
+              <span class="onboarding-num">3</span>
+              <h3>Explore and Analyze</h3>
+              <p>Head to the <strong>Tables</strong> tab to browse medallion schemas and lineage, or use the <strong>Models</strong> tab to build low-code dataset projections.</p>
+            </div>
+          </div>
+        </div>
         <div class="grid">
           <div class="panel span-6">
             <h2>League Ingest</h2>
@@ -424,8 +772,27 @@
             <div class="toolbar">
               <button class="primary" onclick="syncAllLeagues()">Sync leagues</button>
               <button onclick="syncBroad()">Sync broad NFL</button>
+              <button onclick="switchToScheduleIngest()" style="border-color: rgba(59, 130, 246, 0.4); color: var(--accent); background: rgba(59, 130, 246, 0.05);">📅 Schedule Ingest</button>
             </div>
             <div id="batchStatus" class="status"></div>
+          </div>
+
+          <div class="panel span-12">
+            <h2>Tracked Leagues Registry</h2>
+            <p style="font-size: 12px; color: var(--muted); margin-bottom: 12px;">Stored locally in <code>meta/leagues.json</code>.</p>
+            <div class="form-grid" style="margin-bottom: 12px;">
+              <label class="span-6">League ID
+                <input type="text" id="trackLeagueId" placeholder="e.g. 1261894762944802816" />
+              </label>
+              <label class="span-6">Label (optional)
+                <input type="text" id="trackLeagueLabel" placeholder="e.g. Main League" />
+              </label>
+            </div>
+            <div class="toolbar">
+              <button class="primary" onclick="trackLeague()">Track League</button>
+              <button onclick="loadTrackedLeagues()">Refresh</button>
+            </div>
+            <div id="trackedLeagues" class="scroll" style="max-height: 150px; margin-top: 12px; background: rgba(17, 24, 39, 0.3); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px;">Loading tracked leagues...</div>
           </div>
 
           <div class="panel span-8">
@@ -469,6 +836,10 @@
       </section>
 
       <section id="view-tables" class="view">
+        <div class="view-header">
+          <h2>Medallion Tables</h2>
+          <p>Explore your conformed dataset assets across Bronze (raw), Silver (canonical), Gold (business aggregates), and Custom Model layers. Select any table to profile its schema, inspect downstream lineage, and preview conformed table rows.</p>
+        </div>
         <div class="split">
           <div class="panel">
             <h2>Tables</h2>
@@ -487,12 +858,49 @@
                 <tbody id="schemaBody"></tbody>
               </table>
             </div>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 8px; margin-bottom: 16px;">* Non-null: Indicates the count of rows containing active (non-empty, non-null) values for that column.</div>
+
+            <div id="samplePreviewTitle" class="hidden" style="font-size: 14px; font-weight: 600; margin-top: 20px; margin-bottom: 8px;">Data Preview (First 100 rows)</div>
+            <div id="sampleTableWrapper" class="scroll hidden" style="max-height: 300px; margin-top: 10px;">
+              <table>
+                <thead id="sampleTableHeader"></thead>
+                <tbody id="sampleTableBody"></tbody>
+              </table>
+            </div>
             <pre id="sampleRows">Select a table.</pre>
           </div>
         </div>
       </section>
 
       <section id="view-models" class="view">
+        <div class="view-header">
+          <h2>Model Workspace</h2>
+          <p>Build custom datasets without writing SQL by stacking filter, select, rename, join, and union operations. Click Save Model, then run materialization to write outputs to local storage.</p>
+        </div>
+        <div class="onboarding-card">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent); display: inline; vertical-align: middle; margin-right: 6px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            How to Build Low-Code Models
+          </h2>
+          <p>Models transform your raw Bronze tables into curated datasets using simple logical operations:</p>
+          <div class="onboarding-steps">
+            <div class="onboarding-step">
+              <span class="onboarding-num">1</span>
+              <h3>Define Target</h3>
+              <p>Give your model a name and select a starting source dataset (e.g. <code>bronze:nfl_sleeper.players</code>).</p>
+            </div>
+            <div class="onboarding-step">
+              <span class="onboarding-num">2</span>
+              <h3>Add Operations</h3>
+              <p>Choose an operation (like <em>Filter</em>, <em>Choose columns</em>, or <em>Group</em>), specify settings, and click <strong>Add operation</strong>. You can stack multiple operations.</p>
+            </div>
+            <div class="onboarding-step">
+              <span class="onboarding-num">3</span>
+              <h3>Save & Materialize</h3>
+              <p>Click <strong>Save model</strong>. Once saved, click <strong>Preview</strong> to inspect rows in-memory, or <strong>Materialize</strong> to save the outputs to local disk.</p>
+            </div>
+          </div>
+        </div>
         <div class="grid">
           <div class="panel span-5">
             <h2>Model Builder</h2>
@@ -539,6 +947,34 @@
       </section>
 
       <section id="view-quality" class="view">
+        <div class="view-header">
+          <h2>Data Quality & Assertions</h2>
+          <p>Configure automated data quality checks (required columns, acceptable values, numeric ranges, and referential checks) to monitor data integrity and log failing rows.</p>
+        </div>
+        <div class="onboarding-card">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent); display: inline; vertical-align: middle; margin-right: 6px;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            How to Configure Quality Rules
+          </h2>
+          <p>Attach assertions to tables to monitor freshness, completeness, and values:</p>
+          <div class="onboarding-steps">
+            <div class="onboarding-step">
+              <span class="onboarding-num">1</span>
+              <h3>Select Dataset</h3>
+              <p>Choose a target table from the dropdown. The builder will automatically read the schema and suggest rules for each column.</p>
+            </div>
+            <div class="onboarding-step">
+              <span class="onboarding-num">2</span>
+              <h3>Create Assertion</h3>
+              <p>Select a Rule type (e.g. <em>Required</em>, <em>Accepted values</em>, <em>Numeric range</em>) and fill out the parameters. Click <strong>Save rule</strong>.</p>
+            </div>
+            <div class="onboarding-step">
+              <span class="onboarding-num">3</span>
+              <h3>Run & Alert</h3>
+              <p>Click <strong>Run checks</strong> to execute rules. Any failures will log detailed record samples and trigger configured Slack/Webhook alerts.</p>
+            </div>
+          </div>
+        </div>
         <div class="grid">
           <div class="panel span-5">
             <h2>Rule Builder</h2>
@@ -576,7 +1012,53 @@
         </div>
       </section>
 
+      <section id="view-ambient" class="view">
+        <div class="view-header">
+          <h2>Ambient Confidence</h2>
+        </div>
+        <div class="grid">
+          <div class="panel span-5">
+            <h2>Evaluate</h2>
+            <div class="form-grid">
+              <label class="span-12">Bronze table
+                <select id="ambientTable"></select>
+              </label>
+              <label class="span-12">Ollama model
+                <select id="ambientModel"></select>
+              </label>
+              <label class="span-6">Limit
+                <input id="ambientLimit" type="number" min="1" value="100" />
+              </label>
+            </div>
+            <div class="toolbar">
+              <button onclick="refreshAmbientModels()">Refresh models</button>
+              <button class="primary" onclick="evaluateAmbient()">Evaluate</button>
+            </div>
+            <div id="ambientStatus" class="status"></div>
+            <pre id="ambientResult">No evaluation run selected.</pre>
+          </div>
+          <div class="panel span-7">
+            <h2>Review Queue</h2>
+            <div class="toolbar">
+              <button onclick="refreshAmbientReview()">Refresh</button>
+            </div>
+            <div id="ambientReviewList" class="asset-list"></div>
+          </div>
+          <div class="panel span-12">
+            <h2>Gold Actions</h2>
+            <div class="toolbar">
+              <button onclick="refreshAmbientGold()">Refresh</button>
+            </div>
+            <div id="ambientGoldList" class="asset-list"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="view-jobs" class="view">
+        <div class="view-header">
+          <h2>Background Jobs & Scheduler</h2>
+          <p>Orchestrate automated runs. Schedule ingestion, quality rules, and model materialization using interval, daily, weekly, or five-field cron expressions.</p>
+        </div>
         <div class="grid">
           <div class="panel span-5">
             <h2>Job Builder</h2>
@@ -588,6 +1070,8 @@
                 <select id="jobKind" onchange="renderJobTarget()">
                   <option value="quality_check">Quality check</option>
                   <option value="source_ingest">Source ingest</option>
+                  <option value="adapter_ingest">Adapter ingest</option>
+                  <option value="ambient_evaluate">Ambient evaluate</option>
                   <option value="league_ingest">League ingest</option>
                   <option value="broad_ingest">Broad ingest</option>
                   <option value="model_preview">Model preview</option>
@@ -639,6 +1123,10 @@
       </section>
 
       <section id="view-alerts" class="view">
+        <div class="view-header">
+          <h2>Observability & Alerting</h2>
+          <p>Monitor pipeline errors and assertion failures. Acknowledge in-app alerts and set up Slack or generic webhook delivery channels to receive notifications externally.</p>
+        </div>
         <div class="grid">
           <div class="panel span-7">
             <h2>Alerts</h2>
@@ -686,6 +1174,10 @@
       </section>
 
       <section id="view-storage" class="view">
+        <div class="view-header">
+          <h2>Storage Control & Metadata Portability</h2>
+          <p>Monitor local disk space allocation, view runtime diagnostic checks, configure age-based data retention policies, and export/import workbench metadata bundles.</p>
+        </div>
         <div class="grid">
           <div class="panel span-12">
             <h2>Runtime Diagnostics</h2>
@@ -758,6 +1250,10 @@
       </section>
 
       <section id="view-sql" class="view">
+        <div class="view-header">
+          <h2>SQL Transformation Loader</h2>
+          <p>Developer auditing tab. Inspect compiled SQL transformation code matching the medallion layer calculations running in the background.</p>
+        </div>
         <div class="grid">
           <div class="panel span-5">
             <h2>SQL Artifacts</h2>
@@ -795,6 +1291,10 @@
       sourcePreview: null,
       sourceFileContent: null,
       sourceFileName: null,
+      ambientModels: [],
+      ambientReview: [],
+      ambientGold: [],
+      startupCatchup: null,
       selectedTableId: null
     };
 
@@ -816,10 +1316,14 @@
       document.querySelectorAll('.view').forEach(view => {
         view.classList.toggle('active', view.id === 'view-' + name);
       });
-      if (name === 'ingest') refreshSources();
+      if (name === 'ingest') {
+        refreshSources();
+        refreshRuns();
+      }
       if (name === 'tables') refreshTables();
       if (name === 'models') refreshModels();
       if (name === 'quality') refreshQuality();
+      if (name === 'ambient') refreshAmbient();
       if (name === 'jobs') {
         refreshJobs();
         refreshScheduler();
@@ -830,6 +1334,29 @@
         refreshStorage();
       }
       if (name === 'sql') loadTransformations();
+    }
+
+    function switchToScheduleIngest() {
+      showView('jobs');
+      document.getElementById('jobName').value = 'Scheduled League Sync';
+      const kindEl = document.getElementById('jobKind');
+      if (kindEl) {
+        kindEl.value = 'league_ingest';
+        renderJobTarget();
+      }
+      const leagueIdVal = document.getElementById('leagueId').value.trim() || document.getElementById('leagueId').placeholder || '';
+      const targetInput = document.getElementById('jobLeagueTarget');
+      if (targetInput && leagueIdVal) {
+        targetInput.value = leagueIdVal;
+      }
+      const schedEl = document.getElementById('jobSchedule');
+      if (schedEl) {
+        schedEl.value = 'daily';
+        renderScheduleFields();
+      }
+      setTimeout(() => {
+        document.getElementById('jobName').scrollIntoView({ behavior: 'smooth' });
+      }, 100);
     }
 
     async function api(path, options = {}) {
@@ -866,7 +1393,16 @@
 
     function formatTimestamp(seconds) {
       if (seconds == null) return 'none';
-      return new Date(Number(seconds) * 1000).toISOString();
+      const date = new Date(Number(seconds) * 1000);
+      const diffMs = Date.now() - date.getTime();
+      const diffMins = Math.round(diffMs / 60000);
+      const localStr = date.toLocaleString();
+
+      if (Math.abs(diffMins) < 1) return `Just now (${localStr})`;
+      if (diffMins < 60) return `${diffMins}m ago (${localStr})`;
+      const diffHours = Math.round(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago (${localStr})`;
+      return localStr;
     }
 
     function setStatus(id, message, ok) {
@@ -1055,7 +1591,7 @@
       document.getElementById('sourcesList').innerHTML = state.sources.map(source => {
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(source.name)}</div>
+            <div class="asset-title" title="${escapeHtml(source.name)}">${escapeHtml(source.name)}</div>
             <div class="asset-meta">
               <span>${escapeHtml(source.connector)}</span>
               <span>${escapeHtml(source.table_id)}</span>
@@ -1138,7 +1674,7 @@
           const statusClass = run.status === 'failed' ? 'danger' : run.status === 'succeeded' ? 'success' : 'warning';
           return `<div class="asset-row">
             <div>
-              <div class="asset-title">${escapeHtml(run.kind)}</div>
+              <div class="asset-title" title="${escapeHtml(run.kind)}">${escapeHtml(run.kind)}</div>
               <div class="asset-meta">
                 <span>${escapeHtml(run.league_id || run.target && run.target.table_id || run.target && run.target.source_id || '')}</span>
                 <span>${escapeHtml(new Date((run.timestamp || 0) * 1000).toISOString())}</span>
@@ -1159,6 +1695,7 @@
         state.tables = flattenTables(data);
         document.getElementById('tableCount').textContent = state.tables.length + ' tables';
         populateTableSelects();
+        populateAmbientTableSelect();
         renderTables();
         renderJobTarget();
         if (state.selectedTableId) selectTable(state.selectedTableId);
@@ -1177,13 +1714,16 @@
       Object.keys(grouped).forEach(layer => {
         html += `<h3>${escapeHtml(layer)}</h3>`;
         grouped[layer].forEach(table => {
+          const isInMemory = layer === 'silver' || layer === 'gold' || (layer === 'models' && !table.last_materialized_at);
+          const sizeDisplay = isInMemory ? 'In-memory' : formatBytes(table.size_bytes || 0);
+          const labelVal = tableLabel(table);
           html += `<div class="asset-row">
             <div>
-              <div class="asset-title">${escapeHtml(tableLabel(table))}</div>
+              <div class="asset-title" title="${escapeHtml(labelVal)}">${escapeHtml(labelVal)}</div>
               <div class="asset-meta">
                 <span>${escapeHtml(table.table_id)}</span>
                 <span>${Number(table.row_count || 0)} rows</span>
-                <span>${formatBytes(table.size_bytes || 0)}</span>
+                <span>${sizeDisplay}</span>
               </div>
             </div>
             <button data-table="${escapeHtml(table.table_id)}">Open</button>
@@ -1201,13 +1741,15 @@
       try {
         const profile = await api('/table-profiles/' + encodeURIComponent(tableId));
         document.getElementById('tableDetailTitle').textContent = profile.table_id;
+        const isInMemory = profile.layer === 'silver' || profile.layer === 'gold' || (profile.layer === 'model' && !profile.materialized);
+        const storageDisplay = isInMemory ? 'In-memory' : formatBytes(profile.size_bytes || 0);
         document.getElementById('tableMetrics').innerHTML = `
           <div class="metric span-4"><span>Rows</span><strong>${Number(profile.row_count || 0)}</strong></div>
           <div class="metric span-4"><span>Columns</span><strong>${(profile.schema || []).length}</strong></div>
-          <div class="metric span-4"><span>Storage</span><strong>${formatBytes(profile.size_bytes || 0)}</strong></div>`;
+          <div class="metric span-4"><span>Storage</span><strong>${storageDisplay}</strong></div>`;
         document.getElementById('lineageBlock').innerHTML = `
-          <div class="asset-row"><div><div class="asset-title">Upstream</div><div class="asset-meta">${escapeHtml((profile.upstream || []).join(', ') || 'none')}</div></div></div>
-          <div class="asset-row"><div><div class="asset-title">Downstream</div><div class="asset-meta">${escapeHtml((profile.downstream || []).join(', ') || 'none')}</div></div></div>`;
+          <div class="asset-row"><div><div class="asset-title" title="Upstream">Upstream</div><div class="asset-meta">${escapeHtml((profile.upstream || []).join(', ') || 'none')}</div></div></div>
+          <div class="asset-row"><div><div class="asset-title" title="Downstream">Downstream</div><div class="asset-meta">${escapeHtml((profile.downstream || []).join(', ') || 'none')}</div></div></div>`;
         document.getElementById('schemaBody').innerHTML = (profile.schema || []).map(col => {
           return `<tr><td>${escapeHtml(col.name)}</td><td>${escapeHtml((col.types || []).join(', '))}</td><td>${Number(col.non_null_count || 0)}</td><td>${escapeHtml(JSON.stringify(col.example))}</td></tr>`;
         }).join('');
@@ -1220,14 +1762,57 @@
     async function loadSample(tableId) {
       const parsed = parseTableId(tableId);
       let data;
-      if (parsed.layer === 'bronze') {
-        data = await api('/tables/bronze/' + encodeURIComponent(parsed.source) + '/' + encodeURIComponent(parsed.name));
-      } else if (parsed.layer === 'model') {
-        data = await api('/tables/model/' + encodeURIComponent(parsed.name));
-      } else {
-        data = await api('/tables/' + parsed.layer + '/' + encodeURIComponent(parsed.name));
+      try {
+        if (parsed.layer === 'bronze') {
+          data = await api('/tables/bronze/' + encodeURIComponent(parsed.source) + '/' + encodeURIComponent(parsed.name));
+        } else if (parsed.layer === 'model') {
+          data = await api('/tables/model/' + encodeURIComponent(parsed.name));
+        } else {
+          data = await api('/tables/' + parsed.layer + '/' + encodeURIComponent(parsed.name));
+        }
+      } catch (err) {
+        document.getElementById('sampleRows').textContent = err.message;
+        document.getElementById('samplePreviewTitle').classList.add('hidden');
+        document.getElementById('sampleTableWrapper').classList.add('hidden');
+        document.getElementById('sampleRows').classList.remove('hidden');
+        return;
       }
-      document.getElementById('sampleRows').textContent = JSON.stringify(data.rows || data, null, 2);
+
+      const rows = data.rows || data;
+      const preEl = document.getElementById('sampleRows');
+      const titleEl = document.getElementById('samplePreviewTitle');
+      const wrapperEl = document.getElementById('sampleTableWrapper');
+      const headEl = document.getElementById('sampleTableHeader');
+      const bodyEl = document.getElementById('sampleTableBody');
+
+      if (Array.isArray(rows) && rows.length > 0 && typeof rows[0] === 'object') {
+        preEl.classList.add('hidden');
+        titleEl.classList.remove('hidden');
+        wrapperEl.classList.remove('hidden');
+
+        const headers = Object.keys(rows[0]);
+        headEl.innerHTML = '<tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr>';
+
+        bodyEl.innerHTML = rows.map(row => {
+          return '<tr>' + headers.map(h => {
+            const val = row[h];
+            let displayVal = '';
+            if (val === null) {
+              displayVal = '<span style="color: var(--muted); font-style: italic;">null</span>';
+            } else if (typeof val === 'object') {
+              displayVal = `<span style="font-family: var(--font-mono); font-size: 11px;">${escapeHtml(JSON.stringify(val))}</span>`;
+            } else {
+              displayVal = escapeHtml(val);
+            }
+            return `<td>${displayVal}</td>`;
+          }).join('') + '</tr>';
+        }).join('');
+      } else {
+        titleEl.classList.add('hidden');
+        wrapperEl.classList.add('hidden');
+        preEl.classList.remove('hidden');
+        preEl.textContent = JSON.stringify(rows, null, 2) || 'No sample data available.';
+      }
     }
 
     function parseTableId(tableId) {
@@ -1343,7 +1928,7 @@
       const distinct = (column.distinct_values || []).slice(0, 8).map(value => String(value)).join(', ');
       el.innerHTML = `<div class="asset-row">
         <div>
-          <div class="asset-title">${escapeHtml(column.name)}</div>
+          <div class="asset-title" title="${escapeHtml(column.name)}">${escapeHtml(column.name)}</div>
           <div class="asset-meta">
             <span>${escapeHtml(column.quality_kind || 'field')}</span>
             <span>${escapeHtml((column.types || []).join(','))}</span>
@@ -1446,7 +2031,7 @@
       document.getElementById('rulesList').innerHTML = (rules || []).map(rule => {
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(rule.name)}</div>
+            <div class="asset-title" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}</div>
             <div class="asset-meta"><span>${escapeHtml(rule.table_id)}</span><span>${escapeHtml(rule.type)}</span><span>${escapeHtml(rule.column || '')}</span></div>
           </div>
           <span class="tag">${escapeHtml(rule.severity)}</span>
@@ -1460,9 +2045,10 @@
         const sample = (result.sample_failures || []).length
           ? `<details><summary>Failure samples</summary><pre>${escapeHtml(JSON.stringify(result.sample_failures, null, 2))}</pre></details>`
           : '';
+        const titleVal = result.rule_name || result.rule_id;
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(result.rule_name || result.rule_id)}</div>
+            <div class="asset-title" title="${escapeHtml(titleVal)}">${escapeHtml(titleVal)}</div>
             <div class="asset-meta"><span>${escapeHtml(result.table_id)}</span><span>${Number(result.failed_count || 0)} failures</span></div>
             ${sample}
           </div>
@@ -1593,7 +2179,7 @@
           : 'not materialized';
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(model.name)}</div>
+            <div class="asset-title" title="${escapeHtml(model.name)}">${escapeHtml(model.name)}</div>
             <div class="asset-meta"><span>${escapeHtml(model.source_table_id)}</span><span>${escapeHtml(model.target_table_id)}</span><span>${(model.operations || []).length} ops</span><span>${escapeHtml(materialized)}</span></div>
           </div>
           <div class="toolbar">
@@ -1631,6 +2217,164 @@
       }
     }
 
+    async function refreshAmbient() {
+      populateAmbientTableSelect();
+      await Promise.all([refreshAmbientModels(), refreshAmbientReview(), refreshAmbientGold()]);
+    }
+
+    function populateAmbientTableSelect() {
+      const el = document.getElementById('ambientTable');
+      if (!el) return;
+      const bronze = state.tables.filter(table => table.layer === 'bronze');
+      el.innerHTML = bronze
+        .map(table => `<option value="${escapeHtml(table.table_id)}">${escapeHtml(table.table_id)}</option>`)
+        .join('');
+    }
+
+    async function refreshAmbientModels() {
+      const el = document.getElementById('ambientModel');
+      if (!el) return;
+      try {
+        const data = await api('/ambient/ollama/models');
+        state.ambientModels = data.models || [];
+        const selected = data.selected_model || '';
+        const options = state.ambientModels.map(model => {
+          const isSelected = model === selected ? 'selected' : '';
+          return `<option value="${escapeHtml(model)}" ${isSelected}>${escapeHtml(model)}</option>`;
+        }).join('');
+        el.innerHTML = `<option value="">${selected ? escapeHtml(selected) : 'Select model'}</option>` + options;
+        const msg = data.available
+          ? `${state.ambientModels.length} model(s) available from ${data.base_url}`
+          : data.message || 'Ollama unavailable';
+        setStatus('ambientStatus', msg, Boolean(data.available));
+      } catch (err) {
+        setStatus('ambientStatus', err.message, false);
+      }
+    }
+
+    async function evaluateAmbient() {
+      const tableId = document.getElementById('ambientTable').value;
+      const model = document.getElementById('ambientModel').value || null;
+      const limit = Number(document.getElementById('ambientLimit').value || 100);
+      setStatus('ambientStatus', 'Evaluating...');
+      try {
+        const result = await api('/ambient/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ table_id: tableId, model, limit })
+        });
+        document.getElementById('ambientResult').textContent = JSON.stringify(result, null, 2);
+        setStatus('ambientStatus', result.evaluation_status || 'Evaluated', true);
+        await Promise.all([refreshAmbientReview(), refreshAmbientGold(), refreshTables(), refreshRuns(), refreshAlerts()]);
+      } catch (err) {
+        setStatus('ambientStatus', err.message, false);
+      }
+    }
+
+    async function refreshAmbientReview() {
+      const el = document.getElementById('ambientReviewList');
+      if (!el) return;
+      try {
+        state.ambientReview = await api('/ambient/review?status=open');
+        el.innerHTML = state.ambientReview.map(candidate => {
+          const editPayload = ambientEditablePayload(candidate);
+          return `<div class="asset-row">
+            <div>
+              <div class="asset-title" title="${escapeHtml(candidate.title)}">${escapeHtml(candidate.title)}</div>
+              <div class="asset-meta">
+                <span>${escapeHtml(candidate.entity_type)}</span>
+                <span>${escapeHtml(candidate.groundedness)}</span>
+                <span>${escapeHtml(candidate.source_table_id || '')}</span>
+              </div>
+              <textarea data-ambient-edit="${escapeHtml(candidate.id)}">${escapeHtml(JSON.stringify(editPayload, null, 2))}</textarea>
+            </div>
+            <div class="toolbar">
+              <button data-ambient-approve="${escapeHtml(candidate.id)}">Approve</button>
+              <button data-ambient-ignore="${escapeHtml(candidate.id)}">Ignore</button>
+            </div>
+          </div>`;
+        }).join('') || '<div class="empty">No open review candidates</div>';
+        document.querySelectorAll('[data-ambient-approve]').forEach(button => {
+          button.addEventListener('click', () => approveAmbientCandidate(button.dataset.ambientApprove));
+        });
+        document.querySelectorAll('[data-ambient-ignore]').forEach(button => {
+          button.addEventListener('click', () => ignoreAmbientCandidate(button.dataset.ambientIgnore));
+        });
+      } catch (err) {
+        el.innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function ambientEditablePayload(candidate) {
+      return {
+        entity_type: candidate.entity_type,
+        title: candidate.title,
+        description: candidate.description || '',
+        start_time: candidate.start_time || null,
+        due_time: candidate.due_time || null,
+        participants: candidate.participants || [],
+        location: candidate.location || null
+      };
+    }
+
+    async function approveAmbientCandidate(candidateId) {
+      const editEl = document.querySelector(`[data-ambient-edit="${CSS.escape(candidateId)}"]`);
+      let updates = {};
+      try {
+        updates = JSON.parse(editEl ? editEl.value : '{}');
+      } catch (_) {
+        setStatus('ambientStatus', 'Review edit JSON is invalid.', false);
+        return;
+      }
+      try {
+        await api('/ambient/review/' + encodeURIComponent(candidateId) + '/approve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ updates })
+        });
+        await Promise.all([refreshAmbientReview(), refreshAmbientGold(), refreshAlerts(), refreshTables()]);
+      } catch (err) {
+        setStatus('ambientStatus', err.message, false);
+      }
+    }
+
+    async function ignoreAmbientCandidate(candidateId) {
+      try {
+        await api('/ambient/review/' + encodeURIComponent(candidateId) + '/ignore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        await Promise.all([refreshAmbientReview(), refreshAlerts(), refreshTables()]);
+      } catch (err) {
+        setStatus('ambientStatus', err.message, false);
+      }
+    }
+
+    async function refreshAmbientGold() {
+      const el = document.getElementById('ambientGoldList');
+      if (!el) return;
+      try {
+        const data = await api('/tables/gold/ambient_actions');
+        state.ambientGold = data.rows || [];
+        el.innerHTML = state.ambientGold.map(action => `
+          <div class="asset-row">
+            <div>
+              <div class="asset-title" title="${escapeHtml(action.title)}">${escapeHtml(action.title)}</div>
+              <div class="asset-meta">
+                <span>${escapeHtml(action.entity_type)}</span>
+                <span>${escapeHtml(action.review_status || '')}</span>
+                <span>${escapeHtml(action.source_table_id || '')}</span>
+              </div>
+            </div>
+            <span class="tag success">${escapeHtml(action.groundedness || 'approved')}</span>
+          </div>
+        `).join('') || '<div class="empty">No gold ambient actions</div>';
+      } catch (err) {
+        el.innerHTML = `<div class="empty">${escapeHtml(err.message)}</div>`;
+      }
+    }
+
     function renderJobTarget() {
       const kindEl = document.getElementById('jobKind');
       const targetEl = document.getElementById('jobTargetFields');
@@ -1645,6 +2389,26 @@
         el.innerHTML = state.sources
           .filter(source => source.reusable)
           .map(source => `<option value="${escapeHtml(source.id)}">${escapeHtml(source.name)} (${escapeHtml(source.table_id)})</option>`)
+          .join('');
+      } else if (kind === 'adapter_ingest') {
+        targetEl.innerHTML = `<label class="span-6">Adapter
+          <select id="jobAdapterTarget">
+            <option value="nfl_sleeper">NFL/Sleeper broad</option>
+            <option value="nfl_weekly_feed">NFL weekly feed</option>
+            <option value="ai_daily_brief">AI Daily Brief</option>
+            <option value="gmail">Gmail</option>
+            <option value="google_calendar">Google Calendar</option>
+            <option value="android_messages">Android messages</option>
+          </select>
+        </label>
+        <label class="span-6">Params JSON<input id="jobAdapterParams" type="text" value="{}" /></label>`;
+      } else if (kind === 'ambient_evaluate') {
+        targetEl.innerHTML = `<label class="span-8">Bronze table<select id="jobAmbientTableTarget"></select></label>
+        <label class="span-4">Model<input id="jobAmbientModelTarget" type="text" placeholder="optional" /></label>`;
+        const el = document.getElementById('jobAmbientTableTarget');
+        el.innerHTML = state.tables
+          .filter(table => table.layer === 'bronze')
+          .map(table => `<option value="${escapeHtml(table.table_id)}">${escapeHtml(table.table_id)}</option>`)
           .join('');
       } else if (kind === 'league_ingest') {
         targetEl.innerHTML = `<label class="span-12">League ID<input id="jobLeagueTarget" type="text" /></label>`;
@@ -1717,6 +2481,20 @@
       const target = {};
       if (kind === 'quality_check') target.table_id = document.getElementById('jobTableTarget').value;
       if (kind === 'source_ingest') target.source_id = document.getElementById('jobSourceTarget').value;
+      if (kind === 'adapter_ingest') {
+        target.source_id = document.getElementById('jobAdapterTarget').value;
+        try {
+          target.params = JSON.parse(document.getElementById('jobAdapterParams').value || '{}');
+        } catch (_) {
+          setStatus('jobStatus', 'Adapter params must be valid JSON.', false);
+          return;
+        }
+      }
+      if (kind === 'ambient_evaluate') {
+        target.table_id = document.getElementById('jobAmbientTableTarget').value;
+        const modelValue = document.getElementById('jobAmbientModelTarget').value.trim();
+        if (modelValue) target.model = modelValue;
+      }
       if (kind === 'league_ingest') target.league_id = document.getElementById('jobLeagueTarget').value;
       if (kind === 'model_preview' || kind === 'model_materialize') target.model_id = document.getElementById('jobModelTarget').value;
       const schedule = buildJobSchedule();
@@ -1747,7 +2525,7 @@
         const statusClass = job.last_status === 'failed' ? 'danger' : job.last_status === 'succeeded' ? 'success' : '';
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(job.name)}</div>
+            <div class="asset-title" title="${escapeHtml(job.name)}">${escapeHtml(job.name)}</div>
             <div class="asset-meta">
               <span>${escapeHtml(job.kind)}</span>
               <span>${escapeHtml(scheduleLabel(job.schedule))}</span>
@@ -1786,12 +2564,52 @@
       }
     }
 
+    async function refreshStartupCatchup() {
+      const el = document.getElementById('startupNotice');
+      if (!el) return;
+      try {
+        const data = await api('/scheduler/startup-catchup');
+        state.startupCatchup = data;
+        renderStartupCatchup(data);
+        if (data.status === 'running') {
+          window.setTimeout(refreshStartupCatchup, 2500);
+        }
+      } catch (err) {
+        el.className = 'startup-notice danger';
+        el.innerHTML = `<strong>Startup catch-up unavailable</strong><span>${escapeHtml(err.message)}</span>`;
+      }
+    }
+
+    function renderStartupCatchup(data) {
+      const el = document.getElementById('startupNotice');
+      if (!el) return;
+      const status = data.status || 'idle';
+      const executed = Number(data.executed_count || 0);
+      const shouldShow = status === 'running' || status === 'failed' || status === 'completed_with_errors' || executed > 0;
+      if (!shouldShow) {
+        el.className = 'startup-notice hidden';
+        el.innerHTML = '';
+        return;
+      }
+      let cls = 'startup-notice';
+      if (status === 'completed') cls += ' success';
+      if (status === 'completed_with_errors') cls += ' warning';
+      if (status === 'failed') cls += ' danger';
+      const jobs = (data.executed_jobs || data.due_jobs || [])
+        .map(job => job.name || job.source_id || job.id)
+        .filter(Boolean)
+        .join(', ');
+      const jobLine = jobs ? `<span>Jobs: ${escapeHtml(jobs)}</span>` : '';
+      el.className = cls;
+      el.innerHTML = `<strong>Startup catch-up</strong><span>${escapeHtml(data.message || status)}</span>${jobLine}`;
+    }
+
     async function runDueJobs() {
       setStatus('jobStatus', 'Running due jobs...');
       try {
         const data = await api('/scheduler/run-due', { method: 'POST' });
         setStatus('jobStatus', `${data.executed_count || 0} due job(s) executed.`, true);
-        await Promise.all([refreshJobs(), refreshRuns(), refreshAlerts(), refreshScheduler(), refreshStorage()]);
+        await Promise.all([refreshJobs(), refreshRuns(), refreshAlerts(), refreshScheduler(), refreshStartupCatchup(), refreshStorage()]);
       } catch (err) {
         setStatus('jobStatus', err.message, false);
       }
@@ -1808,7 +2626,7 @@
             : 'in-app only';
           return `<div class="asset-row">
             <div>
-              <div class="asset-title">${escapeHtml(alert.title)}</div>
+              <div class="asset-title" title="${escapeHtml(alert.title)}">${escapeHtml(alert.title)}</div>
               <div class="asset-meta"><span>${escapeHtml(alert.message)}</span><span>${escapeHtml(alert.table_id || '')}</span><span>${escapeHtml(delivery)}</span></div>
             </div>
             <div class="toolbar"><span class="tag ${cls}">${escapeHtml(alert.status)}</span>${alert.status === 'open' ? `<button data-ack="${escapeHtml(alert.id)}">Ack</button>` : ''}</div>
@@ -1858,7 +2676,7 @@
           const enabledText = target.enabled === false ? 'disabled' : 'enabled';
           return `<div class="asset-row">
             <div>
-              <div class="asset-title">${escapeHtml(target.name)}</div>
+              <div class="asset-title" title="${escapeHtml(target.name)}">${escapeHtml(target.name)}</div>
               <div class="asset-meta">
                 <span>${escapeHtml(target.kind)}</span>
                 <span>${escapeHtml(enabledText)}</span>
@@ -1913,9 +2731,10 @@
         state.alertDeliveries = await api('/alerts/deliveries');
         document.getElementById('alertDeliveryLog').innerHTML = state.alertDeliveries.map(delivery => {
           const cls = delivery.status === 'succeeded' ? 'success' : 'danger';
+          const titleVal = delivery.target_name || delivery.target_id || 'delivery';
           return `<div class="asset-row">
             <div>
-              <div class="asset-title">${escapeHtml(delivery.target_name || delivery.target_id || 'delivery')}</div>
+              <div class="asset-title" title="${escapeHtml(titleVal)}">${escapeHtml(titleVal)}</div>
               <div class="asset-meta">
                 <span>${escapeHtml(delivery.kind || '')}</span>
                 <span>${escapeHtml(delivery.alert_id || '')}</span>
@@ -1982,9 +2801,10 @@
     function renderStorageFiles(storage) {
       const files = [...(storage.table_files || []), ...(storage.history_files || [])];
       document.getElementById('storageFiles').innerHTML = files.map(file => {
+        const titleVal = file.label || file.relative_path;
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(file.label || file.relative_path)}</div>
+            <div class="asset-title" title="${escapeHtml(titleVal)}">${escapeHtml(titleVal)}</div>
             <div class="asset-meta">
               <span>${escapeHtml(file.scope)}</span>
               <span>${escapeHtml(file.table_id || file.collection || '')}</span>
@@ -2047,9 +2867,10 @@
       const files = result.candidates || [];
       document.getElementById('storageCleanupPreview').innerHTML = files.map(file => {
         const deleted = (result.deleted || []).some(item => item.path === file.path);
+        const titleVal = file.label || file.relative_path;
         return `<div class="asset-row">
           <div>
-            <div class="asset-title">${escapeHtml(file.label || file.relative_path)}</div>
+            <div class="asset-title" title="${escapeHtml(titleVal)}">${escapeHtml(titleVal)}</div>
             <div class="asset-meta">
               <span>${escapeHtml(file.scope)}</span>
               <span>${escapeHtml(file.table_id || file.collection || '')}</span>
@@ -2119,7 +2940,7 @@
         ['bronze', 'silver', 'gold'].forEach(layer => {
           (data[layer] || []).forEach(name => {
             html += `<div class="asset-row">
-              <div><div class="asset-title">${escapeHtml(name)}</div><div class="asset-meta"><span>${escapeHtml(layer)}</span></div></div>
+              <div><div class="asset-title" title="${escapeHtml(name)}">${escapeHtml(name)}</div><div class="asset-meta"><span>${escapeHtml(layer)}</span></div></div>
               <button data-sql-layer="${escapeHtml(layer)}" data-sql-name="${escapeHtml(name)}">Open</button>
             </div>`;
           });
@@ -2143,6 +2964,58 @@
       }
     }
 
+    async function loadTrackedLeagues() {
+      const el = document.getElementById('trackedLeagues');
+      if (!el) return;
+      try {
+        const d = await api('/leagues');
+        const list = d.leagues || [];
+        if (list.length === 0) {
+          el.innerHTML = '<span class="tag">No tracked leagues</span>';
+          return;
+        }
+        el.innerHTML = '<ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #d1d5db; line-height: 1.6;">' + list.map(x => {
+          const id = x.league_id || '';
+          return '<li>' + id + (x.label ? ' — ' + x.label : '') +
+            ' <a href="#" data-del="' + encodeURIComponent(id) + '" style="color: var(--danger); margin-left: 8px; font-size: 12px; text-decoration: none;">remove</a></li>';
+        }).join('') + '</ul>';
+        el.querySelectorAll('a[data-del]').forEach(a => {
+          a.addEventListener('click', async e => {
+            e.preventDefault();
+            const id = decodeURIComponent(a.dataset.del);
+            try {
+              await api('/leagues/' + encodeURIComponent(id), { method: 'DELETE' });
+              loadTrackedLeagues();
+            } catch (err) {
+              alert(err.message);
+            }
+          });
+        });
+      } catch (e) {
+        el.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    async function trackLeague() {
+      const idEl = document.getElementById('trackLeagueId');
+      const labelEl = document.getElementById('trackLeagueLabel');
+      const id = idEl.value.trim();
+      const label = labelEl.value.trim();
+      if (!id) { alert('Enter a league ID'); return; }
+      try {
+        const body = label ? { league_id: id, label } : { league_id: id };
+        await api('/leagues', {
+          method: 'POST',
+          body: JSON.stringify(body)
+        });
+        idEl.value = '';
+        labelEl.value = '';
+        loadTrackedLeagues();
+      } catch (e) {
+        alert(e.message);
+      }
+    }
+
     async function boot() {
       scrubAdminKeyFromUrl();
       renderSourceConnector();
@@ -2156,10 +3029,13 @@
         refreshRuns(),
         refreshModels(),
         refreshQuality(),
+        refreshAmbient(),
+        refreshStartupCatchup(),
         refreshScheduler(),
         refreshAlerts(),
         refreshDiagnostics(),
-        refreshStorage()
+        refreshStorage(),
+        loadTrackedLeagues()
       ]);
     }
 

@@ -1,11 +1,11 @@
 """Gold: waiver/add recommendations. Returns available players with a simple score for ranking."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from analytics_foundry.gold import players as gold_players
 
 
-def get_waiver_recommendations(league_id: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+def get_waiver_recommendations(league_id: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
     """Return waiver/add recommendations: available players with score (stub: trending or 0)."""
     available = gold_players.get_available_players(league_id=league_id)
     out = []

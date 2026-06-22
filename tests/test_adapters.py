@@ -1,6 +1,5 @@
 """PLAN 1.3: Adapter interface exists; stub can be registered and instantiated."""
 
-import pytest
 
 
 def test_source_adapter_protocol_exists():

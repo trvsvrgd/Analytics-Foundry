@@ -7,10 +7,10 @@ from analytics_foundry.silver import injuries as silver_injuries
 from analytics_foundry.silver import league as silver_league
 from analytics_foundry.silver import players as silver_players
 from analytics_foundry.silver import rosters as silver_rosters
-from analytics_foundry.silver.players import SILVER_PLAYER_KEYS
-from analytics_foundry.silver.league import SILVER_LEAGUE_KEYS
-from analytics_foundry.silver.rosters import SILVER_ROSTER_KEYS
 from analytics_foundry.silver.injuries import SILVER_INJURY_KEYS
+from analytics_foundry.silver.league import SILVER_LEAGUE_KEYS
+from analytics_foundry.silver.players import SILVER_PLAYER_KEYS
+from analytics_foundry.silver.rosters import SILVER_ROSTER_KEYS
 
 
 @pytest.fixture(autouse=True)

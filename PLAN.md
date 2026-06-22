@@ -16,11 +16,13 @@
 | **1.7** REST API: `/players/available`, `/league/validate`, `/injury` | Contract tests pass. |
 | **1.8** Player response shape | Contract tests assert required fields. |
 | **1.9** Recommendation endpoint | `tests/test_recommendations.py` passes. |
+| **1.9a** Manager brief data product | `/recommendations/manager-brief` aggregates gold waiver, trade, injury, roster, lineup, and matchup model outputs for downstream apps; `tests/test_manager_brief.py` passes. |
 | **1.10** Docs | README, TECH_SPEC, PLAN document current run/test/API behavior. |
 | **2.1** Full API contract test suite | `tests/test_api_contract.py` passes. |
 | **2.2** Second adapter to prove pluggability | `MockFixtureAdapter` and tests pass. |
 | **2.3** SQL artifacts | `sql/`, `sql_loader.py`, and SQL artifact tests pass. |
 | **2.4** Recommendation logic implementation | Waiver recommendation unit and endpoint tests pass. |
+| **Ops / MVP+** | Implemented: `/health`, `/ready`, optional `/metrics`, startup validation, structured logging, bronze refresh ingest, admin pipeline/logs/lineage/quality/leagues, `DEPLOYMENT.md`, ruff/mypy, pytest coverage ≥80%; extended pytest suite. |
 | **3.1** Workbench control-plane foundation: persisted jobs/runs, table profiles, lineage, quality rules/results, alerts, storage, and low-code model previews | `tests/test_workbench_control_plane.py` passes; full suite passes with 79 tests. |
 | **3.2** Admin UI reframed as low-code workbench | `/admin` exposes Ingest, Tables, Models, Quality, Jobs, Alerts, Storage, and SQL tabs; legacy admin route tests still pass. |
 | **3.3** UI-driven source onboarding for files and generic APIs | `/admin/sources/*` endpoints support preview + ingest for CSV/TSV/JSON/JSONL files and public JSON APIs; source-to-bronze lineage tested; full suite passes with 82 tests. |
@@ -33,26 +35,30 @@
 | **4.2** Import/export bundle for workbench metadata | `/admin/export` and `/admin/import` round-trip saved sources, jobs, quality rules, models, alerts, alert targets, and optional history across local data roots; merge imports de-duplicate by record id; full suite passes with 102 tests. |
 | **4.3** Runtime health and diagnostics endpoint | `/admin/diagnostics` reports storage writability, metadata JSON/JSONL validity, adapter registration, scheduler settings/status, recent failed runs, and open alerts; tests cover healthy and corrupted-metadata paths; full suite passes with 104 tests. |
 | **5.1** Cron-like and calendar job scheduling | Jobs now support manual, interval, hourly, daily-at-time, weekly-at-time, and five-field cron-style schedules; UI exposes low-code schedule controls; tests cover daily, weekly, cron, and invalid cron behavior; full suite passes with 108 tests. |
+| **6.1** Confidence and routing engine | `ambient-context-engine` provides Ollama-backed structured extraction and routing; Foundry adds Gmail, Calendar, and Android message adapters; ambient evaluation writes high/medium candidates to silver, promotes high to gold, alerts medium for review, and keeps low in bronze. Tests cover mocked adapters, routing, and approve/edit/ignore review. |
+| **6.2** Default weekly ingest and startup catch-up | Startup seeds visible weekly jobs for NFL/Sleeper broad data, the default Sleeper league, the NFL weekly feed, and AI Daily Brief transcripts; overdue jobs run on API startup; `/admin/scheduler/startup-catchup` and the Admin UI banner report catch-up activity; focused control-plane tests pass. |
 
 ---
 
 ## Pending
 
-No pending tasks are currently listed for the first-pass personal ETL workbench goal.
+- Build the Android companion APK once Java, Gradle, and Android SDK are installed locally.
 
 ---
 
 ## Technical Debt & Product Risks
 
-- The scheduler runs due jobs inside the API process; it is local-only and not a distributed scheduler.
+- The scheduler runs due jobs inside the API process; startup catch-up runs missed due jobs once when the API starts, but this is still local-only and not a distributed scheduler.
 - Low-code models can be previewed, materialized manually, or materialized by scheduled jobs.
 - Source onboarding is intentionally simple: uploaded file content is one-shot, while server-local paths and public JSON APIs can be re-run as source-ingest jobs.
 - Storage cleanup is local and file-based; it does not optimize or compact partially retained JSONL files yet.
 - Alert delivery supports webhook-style targets, but not SMTP/email account setup yet.
 - The SQL artifact view is intentionally secondary; new user workflows should continue to favor low-code assets.
+- Android selected-thread ingest currently has a documented companion-app contract and server endpoint; APK build tooling was not available in the local Windows environment.
+- Ollama evaluation requires a local Ollama service and selected local model; unavailable models queue a warning alert instead of dropping bronze records.
 
 ---
 
 ## Next Step to Execute
 
-**Next:** Define a second-pass product-depth slice, such as SMTP/email alert delivery, a visual lineage/modeling canvas, or richer data preview/profiling charts.
+**Next:** Install Android tooling and turn `ambient-context-engine/android_companion` from bridge contract into a buildable sideloaded APK.

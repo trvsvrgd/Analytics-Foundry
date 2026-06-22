@@ -5,25 +5,53 @@ from pathlib import Path
 import time
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from analytics_foundry import workbench
 from analytics_foundry.adapters import get_adapter
 from analytics_foundry.bronze import store as bronze_store
-from analytics_foundry.config import admin_auth_enabled, get_admin_api_key, get_default_league_id
+from analytics_foundry.config import (
+    admin_auth_enabled,
+    get_admin_api_key,
+    get_ambient_ollama_base_url,
+    get_ambient_ollama_model,
+    get_default_league_id,
+)
+from analytics_foundry.gold import injury as gold_injury
+from analytics_foundry.gold import league as gold_league
+from analytics_foundry.gold import players as gold_players
+from analytics_foundry.gold import recommendations as gold_recommendations
+from analytics_foundry.health import get_pipeline_health
+from analytics_foundry.leagues_store import add_league, list_leagues, remove_league
+from analytics_foundry.lineage import list_lineage
+from analytics_foundry.quality import quality_summary
 from analytics_foundry.silver import injuries as silver_injuries
 from analytics_foundry.silver import league as silver_league
 from analytics_foundry.silver import players as silver_players
 from analytics_foundry.silver import rosters as silver_rosters
-from analytics_foundry.gold import injury as gold_injury
-from analytics_foundry.gold import league as gold_league
-from analytics_foundry.gold import players as gold_players
+from analytics_foundry.silver import projections as silver_projections
+from analytics_foundry.silver import tuesday_analytics as silver_tuesday
+from analytics_foundry.gold import projections as gold_projections
+from analytics_foundry.gold import tuesday_analytics as gold_tuesday
+from analytics_foundry.silver import ai_daily_brief as silver_aidb
+from analytics_foundry.gold import ai_daily_brief as gold_aidb
 from analytics_foundry.sql_loader import list_sql_files, medallion_layers, read_sql
+from analytics_foundry.telemetry import get_recent_logs
 
 _ADMIN_AUTH_COOKIE = "foundry_admin_key"
 _ADMIN_AUTH_HEADER = "X-Foundry-Admin-Key"
+_STARTUP_CATCHUP_STATUS: Dict[str, Any] = {
+    "status": "idle",
+    "message": "Startup catch-up has not run in this process.",
+    "started_at": None,
+    "finished_at": None,
+    "due_count": 0,
+    "executed_count": 0,
+    "executed_jobs": [],
+    "error": None,
+}
 
 
 def require_admin_auth(request: Request) -> None:
@@ -46,6 +74,8 @@ def require_admin_auth(request: Request) -> None:
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_auth)])
 
+# Stub: in-memory run history (last league + last broad sync)
+_RUNS: list[dict[str, Any]] = []
 _DEFAULT_SAMPLE_LIMIT = 100
 
 
@@ -104,6 +134,26 @@ class SourceBody(BaseModel):
     records_path: Optional[str] = None
 
 
+class AmbientEvaluateBody(BaseModel):
+    table_id: str
+    model: Optional[str] = None
+    limit: int = 100
+
+
+class AmbientMessageIngestBody(BaseModel):
+    device_id: str = "android"
+    threads: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AmbientReviewApproveBody(BaseModel):
+    updates: Dict[str, Any] = Field(default_factory=dict)
+    reviewer_note: Optional[str] = None
+
+
+class AmbientReviewIgnoreBody(BaseModel):
+    reviewer_note: Optional[str] = None
+
+
 class StorageRetentionBody(BaseModel):
     scopes: List[str] = Field(default_factory=lambda: ["bronze", "models", "run_history"])
     older_than_days: Optional[float] = 30
@@ -139,8 +189,34 @@ def _body_dict(body: BaseModel) -> Dict[str, Any]:
     return body.dict()
 
 
+def startup_catchup_status() -> Dict[str, Any]:
+    """Return the latest startup catch-up state for the current API process."""
+    return dict(_STARTUP_CATCHUP_STATUS)
+
+
+def _set_startup_catchup_status(**updates: Any) -> Dict[str, Any]:
+    _STARTUP_CATCHUP_STATUS.update(updates)
+    return startup_catchup_status()
+
+
+class LeagueTrackBody(BaseModel):
+    """Register a league ID in local meta (requires persisted data dir)."""
+    league_id: str
+    label: str | None = None
+
+
+def _record_run(kind: str, league_id: str | None = None) -> None:
+    _RUNS.insert(0, {
+        "kind": kind,
+        "league_id": league_id,
+        "timestamp": time.time(),
+    })
+    while len(_RUNS) > 50:
+        _RUNS.pop()
+
+
 @router.get("/config")
-def admin_config() -> Dict[str, Any]:
+def admin_config() -> dict[str, Any]:
     """Return config values for the admin UI (e.g. default league ID)."""
     return {
         "default_league_id": get_default_league_id(),
@@ -148,8 +224,60 @@ def admin_config() -> Dict[str, Any]:
     }
 
 
+@router.get("/pipeline/health")
+def admin_pipeline_health() -> dict[str, Any]:
+    """Pipeline status: adapter, data root, bronze freshness, quality summary."""
+    pipe = get_pipeline_health()
+    pipe["quality"] = quality_summary()
+    return pipe
+
+
+@router.get("/logs")
+def admin_logs(limit: int = Query(100, ge=1, le=500)) -> list[dict[str, Any]]:
+    """Recent structured log lines captured in memory (for local admin)."""
+    return get_recent_logs(limit=limit)
+
+
+@router.get("/lineage")
+def admin_lineage() -> dict[str, Any]:
+    """Bronze/silver/gold lineage for NFL/Sleeper pipelines."""
+    return {"entries": list_lineage()}
+
+
+@router.get("/quality")
+def admin_quality() -> dict[str, Any]:
+    """Data quality summary (null keys, schema checks)."""
+    return quality_summary()
+
+
+@router.get("/leagues")
+def admin_list_tracked_leagues() -> dict[str, Any]:
+    """League IDs stored in meta/leagues.json (optional registry)."""
+    return {"leagues": list_leagues()}
+
+
+@router.post("/leagues")
+def admin_track_league(body: LeagueTrackBody) -> dict[str, Any]:
+    """Add a league_id to the local registry."""
+    try:
+        return add_league(body.league_id, body.label)
+    except OSError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/leagues/{league_id:path}")
+def admin_untrack_league(league_id: str) -> dict[str, Any]:
+    """Remove a league_id from the registry."""
+    try:
+        return remove_league(league_id)
+    except OSError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+
 @router.post("/ingest/league")
-def admin_ingest_league(body: IngestLeagueBody) -> Dict[str, Any]:
+def admin_ingest_league(body: IngestLeagueBody) -> dict[str, Any]:
     """Trigger league-scoped ingest for the given league_id. Uses ensure_league_ingested."""
     gold_league.ensure_league_ingested(body.league_id)
     workbench.record_run(
@@ -206,6 +334,199 @@ def admin_ingest_source(body: SourceBody) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Invalid JSON source: {exc}")
 
 
+@router.get("/ambient/ollama/models")
+def admin_ambient_ollama_models() -> Dict[str, Any]:
+    """Return local Ollama model choices for ambient evaluation."""
+    try:
+        models = _ambient_list_ollama_models()
+    except RuntimeError as exc:
+        return {
+            "available": False,
+            "models": [],
+            "selected_model": get_ambient_ollama_model(),
+            "base_url": get_ambient_ollama_base_url(),
+            "message": str(exc),
+        }
+    return {
+        "available": True,
+        "models": models,
+        "selected_model": get_ambient_ollama_model(),
+        "base_url": get_ambient_ollama_base_url(),
+    }
+
+
+@router.post("/ambient/messages/ingest")
+def admin_ingest_ambient_messages(body: AmbientMessageIngestBody) -> Dict[str, Any]:
+    """Receive selected Android message threads and write them to bronze."""
+    adapter = get_adapter("android_messages")
+    if adapter is None:
+        raise HTTPException(status_code=503, detail="android_messages adapter not registered")
+    before = len(bronze_store.get_raw("android_messages", "threads"))
+    adapter.ingest_to_bronze(device_id=body.device_id, threads=body.threads)
+    after = len(bronze_store.get_raw("android_messages", "threads"))
+    row_count = max(0, after - before)
+    table_id = workbench.table_id("bronze", "threads", source_id="android_messages")
+    run = workbench.record_run(
+        "adapter_ingest",
+        target={"source_id": "android_messages", "table_id": table_id},
+        details={"row_count": row_count, "device_id": body.device_id},
+    )
+    return {"ok": True, "table_id": table_id, "row_count": row_count, "run": run}
+
+
+@router.post("/ambient/evaluate")
+def admin_evaluate_ambient(body: AmbientEvaluateBody) -> Dict[str, Any]:
+    """Evaluate a bronze table through the ambient confidence engine."""
+    try:
+        result = _run_ambient_evaluation(body.table_id, body.model, body.limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    run = workbench.record_run(
+        "ambient_evaluate",
+        status="succeeded",
+        target={"table_id": body.table_id, "model": body.model},
+        details=dict(result),
+    )
+    result["run"] = run
+    return result
+
+
+@router.get("/ambient/review")
+def admin_ambient_review(status: Optional[str] = "open") -> List[Dict[str, Any]]:
+    """Return ambient candidates awaiting or carrying human review decisions."""
+    return workbench.get_silver_ambient_candidates(status=status)
+
+
+@router.post("/ambient/review/{candidate_id}/approve")
+def admin_approve_ambient_candidate(candidate_id: str, body: AmbientReviewApproveBody) -> Dict[str, Any]:
+    """Approve a medium-confidence candidate into gold, with optional edits."""
+    try:
+        action = workbench.promote_ambient_candidate(
+            candidate_id,
+            updates=body.updates,
+            reviewer_note=body.reviewer_note,
+            status="approved",
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Ambient candidate not found: {candidate_id}")
+    return {"ok": True, "action": action}
+
+
+@router.post("/ambient/review/{candidate_id}/ignore")
+def admin_ignore_ambient_candidate(candidate_id: str, body: AmbientReviewIgnoreBody) -> Dict[str, Any]:
+    """Ignore a medium-confidence candidate so it never reaches gold."""
+    try:
+        candidate = workbench.ignore_ambient_candidate(candidate_id, body.reviewer_note)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Ambient candidate not found: {candidate_id}")
+    return {"ok": True, "candidate": candidate}
+
+
+def _ambient_list_ollama_models() -> List[str]:
+    try:
+        from ambient_context_engine import EvaluationUnavailable, list_ollama_models
+    except ImportError as exc:
+        raise RuntimeError("ambient-context-engine is not installed") from exc
+    try:
+        return list_ollama_models(get_ambient_ollama_base_url())
+    except EvaluationUnavailable as exc:
+        raise RuntimeError(str(exc)) from exc
+
+
+def _ambient_evaluate_records(rows: List[Dict[str, Any]], model: str | None):
+    try:
+        from ambient_context_engine import evaluate_records
+    except ImportError as exc:
+        raise RuntimeError("ambient-context-engine is not installed") from exc
+    return evaluate_records(rows, model=model)
+
+
+def _ambient_route_candidates(candidates: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+    try:
+        from ambient_context_engine import route_candidates
+    except ImportError as exc:
+        raise RuntimeError("ambient-context-engine is not installed") from exc
+    return route_candidates(candidates)
+
+
+def _run_ambient_evaluation(table_id: str, model: str | None, limit: int = 100) -> Dict[str, Any]:
+    rows = _rows_for_table_id(table_id)[: max(1, int(limit or 100))]
+    selected_model = model or get_ambient_ollama_model()
+    try:
+        evaluation = _ambient_evaluate_records(rows, selected_model)
+    except RuntimeError as exc:
+        alert = workbench.create_alert(
+            title="Ambient evaluation queued for review",
+            message=str(exc),
+            severity="warning",
+            table_id=table_id,
+        )
+        return {
+            "status": "succeeded",
+            "evaluation_status": "queued_for_review",
+            "table_id": table_id,
+            "model": selected_model,
+            "input_count": len(rows),
+            "error": str(exc),
+            "alert_id": alert["id"],
+        }
+    except Exception as exc:
+        if exc.__class__.__name__ == "EvaluationUnavailable":
+            alert = workbench.create_alert(
+                title="Ambient evaluation queued for review",
+                message=str(exc),
+                severity="warning",
+                table_id=table_id,
+            )
+            return {
+                "status": "succeeded",
+                "evaluation_status": "queued_for_review",
+                "table_id": table_id,
+                "model": selected_model,
+                "input_count": len(rows),
+                "error": str(exc),
+                "alert_id": alert["id"],
+            }
+        raise
+
+    candidates = [dict(candidate) for candidate in getattr(evaluation, "candidates", [])]
+    routed = _ambient_route_candidates(candidates)
+    stored = workbench.persist_ambient_candidates(
+        routed["promote"] + routed["review"],
+        source_table_id=table_id,
+        model=getattr(evaluation, "model", None) or selected_model,
+    )
+    promoted = []
+    review = []
+    for candidate in stored:
+        if candidate.get("route") == "promote":
+            promoted.append(workbench.promote_ambient_candidate(candidate["id"], status="auto_promoted"))
+        elif candidate.get("route") == "review":
+            alert = workbench.create_alert(
+                title=f"Ambient review needed: {candidate.get('title')}",
+                message=str(candidate.get("confidence_reason") or "Medium-confidence ambient candidate needs review."),
+                severity="warning",
+                table_id=workbench.table_id("silver", workbench.AMBIENT_SILVER_TABLE),
+            )
+            review.append(workbench.attach_ambient_alert(candidate["id"], alert["id"]))
+    return {
+        "status": "succeeded",
+        "evaluation_status": "evaluated",
+        "table_id": table_id,
+        "model": getattr(evaluation, "model", None) or selected_model,
+        "input_count": len(rows),
+        "candidate_count": len(candidates),
+        "high_count": len(routed["promote"]),
+        "medium_count": len(routed["review"]),
+        "low_count": len(routed["ignore"]),
+        "silver_count": len(stored),
+        "gold_count": len(promoted),
+        "review_count": len(review),
+        "silver_table_id": workbench.table_id("silver", workbench.AMBIENT_SILVER_TABLE),
+        "gold_table_id": workbench.table_id("gold", workbench.AMBIENT_GOLD_TABLE),
+    }
+
+
 def _parse_league_ids(raw: str | list[str]) -> list[str]:
     """Parse league_ids from string (comma/newline separated) or list."""
     if isinstance(raw, list):
@@ -229,6 +550,8 @@ def _rows_for_table_id(stable_table_id: str) -> List[Dict[str, Any]]:
     if layer == "bronze":
         return bronze_store.get_raw(parsed["source_id"], name)
     if layer == "silver":
+        if name == workbench.AMBIENT_SILVER_TABLE:
+            return workbench.get_silver_ambient_candidates()
         if name == "players":
             return silver_players.get_players()
         if name == "league":
@@ -237,12 +560,48 @@ def _rows_for_table_id(stable_table_id: str) -> List[Dict[str, Any]]:
             return silver_rosters.get_rosters()
         if name == "injuries":
             return silver_injuries.get_injuries()
+        if name == "weekly_matchups":
+            return silver_projections.get_weekly_matchups()
+        if name == "team_stats":
+            return silver_projections.get_team_stats()
+        if name == "player_weekly_stats":
+            return silver_tuesday.get_player_weekly_stats()
+        if name == "depth_charts":
+            return silver_tuesday.get_depth_charts()
+        if name == "vegas_weather":
+            return silver_tuesday.get_vegas_weather()
+        if name == "faab_history":
+            return silver_tuesday.get_faab_history()
+        if name == "ai_daily_brief_cleaned":
+            return silver_aidb.get_cleaned_transcripts()
         raise HTTPException(status_code=404, detail=f"Unknown silver table: {name}")
     if layer == "gold":
+        if name == workbench.AMBIENT_GOLD_TABLE:
+            return workbench.get_gold_ambient_actions()
         if name == "available_players":
             return gold_players.get_available_players()
         if name == "injury":
             return gold_injury.get_injury_report()
+        if name == "waiver_recommendations":
+            return gold_recommendations.get_waiver_recommendations(get_default_league_id(), limit=500)
+        if name == "defense_projections":
+            return gold_projections.get_defense_projections(get_default_league_id())
+        if name == "win_probability":
+            return gold_projections.get_win_probability(get_default_league_id())
+        if name == "tuesday_waiver_targets":
+            return gold_tuesday.get_waiver_targets(get_default_league_id())
+        if name == "tuesday_trade_regression":
+            return gold_tuesday.get_trade_regression(get_default_league_id())
+        if name == "tuesday_injury_cascade":
+            return gold_tuesday.get_injury_cascade(get_default_league_id())
+        if name == "tuesday_roster_utility":
+            return gold_tuesday.get_roster_utility(get_default_league_id())
+        if name == "tuesday_waiver_bids":
+            return gold_tuesday.get_waiver_bids(get_default_league_id())
+        if name == "mba_coursework_impact":
+            return gold_aidb.get_mba_impact()
+        if name == "ai_platform_product_strategy":
+            return gold_aidb.get_product_strategy_impact()
         raise HTTPException(status_code=404, detail=f"Unknown gold table: {name}")
     if layer == "model":
         model = workbench.get_model(name)
@@ -263,6 +622,10 @@ def _storage_path_for_table_id(stable_table_id: str) -> str | None:
         if model is None or not workbench.model_has_materialized_rows(model["id"]):
             return None
         return workbench.model_storage_path(model["id"])
+    if parsed["layer"] == "silver" and parsed["name"] == workbench.AMBIENT_SILVER_TABLE:
+        return workbench.ambient_storage_path("silver", workbench.AMBIENT_SILVER_TABLE)
+    if parsed["layer"] == "gold" and parsed["name"] == workbench.AMBIENT_GOLD_TABLE:
+        return workbench.ambient_storage_path("gold", workbench.AMBIENT_GOLD_TABLE)
     return None
 
 
@@ -276,7 +639,7 @@ def _profile_for_table_id(stable_table_id: str) -> Dict[str, Any]:
 
 
 @router.post("/ingest/leagues")
-def admin_ingest_leagues(body: IngestLeaguesBody) -> Dict[str, Any]:
+def admin_ingest_leagues(body: IngestLeaguesBody) -> dict[str, Any]:
     """Trigger league-scoped ingest for one or more league IDs."""
     ids = _parse_league_ids(body.league_ids)
     if not ids:
@@ -288,7 +651,7 @@ def admin_ingest_leagues(body: IngestLeaguesBody) -> Dict[str, Any]:
 
 
 @router.post("/ingest/broad")
-def admin_ingest_broad() -> Dict[str, Any]:
+def admin_ingest_broad() -> dict[str, Any]:
     """Trigger broad NFL ingest (no league_id). Calls adapter ingest_to_bronze()."""
     adapter = get_adapter("nfl_sleeper")
     if adapter is None:
@@ -308,14 +671,13 @@ def admin_list_tables() -> Dict[str, Any]:
         profile["table"] = table
         profile["row_count"] = row_count
         bronze.append(profile)
-
     silver = [
         _profile_for_table_id(workbench.table_id("silver", name))
-        for name in ("players", "league", "rosters", "injuries")
+        for name in ("players", "league", "rosters", "injuries", "weekly_matchups", "team_stats", "player_weekly_stats", "depth_charts", "vegas_weather", "faab_history", workbench.AMBIENT_SILVER_TABLE, "ai_daily_brief_cleaned")
     ]
     gold = [
         _profile_for_table_id(workbench.table_id("gold", name))
-        for name in ("available_players", "injury")
+        for name in ("available_players", "injury", "waiver_recommendations", "defense_projections", "win_probability", "tuesday_waiver_targets", "tuesday_trade_regression", "tuesday_injury_cascade", "tuesday_roster_utility", "tuesday_waiver_bids", workbench.AMBIENT_GOLD_TABLE, "mba_coursework_impact", "ai_platform_product_strategy")
     ]
     models = [
         _profile_for_table_id(model["target_table_id"])
@@ -327,38 +689,64 @@ def admin_list_tables() -> Dict[str, Any]:
 
 @router.get("/tables/{layer}/{source_or_name}")
 def admin_sample_table_two_segments(
-    layer: str, source_or_name: str, table: Optional[str] = None
-) -> Dict[str, Any]:
+    layer: str,
+    source_or_name: str,
+    table: str | None = None,
+    league_id: str | None = None,
+    limit: int = Query(_DEFAULT_SAMPLE_LIMIT, ge=1, le=500),
+) -> dict[str, Any]:
     """Sample table: bronze requires table (source_or_name=source_id); gold/silver use source_or_name as name."""
-    limit = _DEFAULT_SAMPLE_LIMIT
+    sample_limit = min(limit, _DEFAULT_SAMPLE_LIMIT) if layer != "gold" else limit
     if layer == "bronze":
         if table is None:
             raise HTTPException(
                 status_code=400,
                 detail="Bronze sample requires path: /admin/tables/bronze/{source_id}/{table}",
             )
-        rows = bronze_store.get_raw(source_or_name, table)[:limit]
-        return {"layer": layer, "source_id": source_or_name, "table": table, "rows": rows, "limit": limit}
+        rows = bronze_store.get_raw(source_or_name, table)[:sample_limit]
+        return {
+            "layer": layer,
+            "source_id": source_or_name,
+            "table": table,
+            "rows": rows,
+            "limit": sample_limit,
+        }
     if layer == "silver":
+        if source_or_name == workbench.AMBIENT_SILVER_TABLE:
+            rows = workbench.get_silver_ambient_candidates()[:limit]
+            return {"layer": "silver", "table": source_or_name, "rows": rows, "limit": limit}
         if source_or_name == "players":
-            rows = silver_players.get_players()[:limit]
+            rows = silver_players.get_players()[:sample_limit]
         elif source_or_name == "league":
-            rows = silver_league.get_leagues()[:limit]
+            rows = silver_league.get_leagues()[:sample_limit]
         elif source_or_name == "rosters":
-            rows = silver_rosters.get_rosters()[:limit]
+            rows = silver_rosters.get_rosters()[:sample_limit]
         elif source_or_name == "injuries":
-            rows = silver_injuries.get_injuries()[:limit]
+            rows = silver_injuries.get_injuries()[:sample_limit]
+        elif source_or_name == "ai_daily_brief_cleaned":
+            rows = silver_aidb.get_cleaned_transcripts()[:limit]
         else:
             raise HTTPException(status_code=404, detail=f"Unknown silver table: {source_or_name}")
-        return {"layer": layer, "name": source_or_name, "rows": rows, "limit": limit}
+        return {"layer": layer, "name": source_or_name, "rows": rows, "limit": sample_limit}
     if layer == "gold":
+        if source_or_name == workbench.AMBIENT_GOLD_TABLE:
+            rows = workbench.get_gold_ambient_actions()[:limit]
+            return {"layer": "gold", "table": source_or_name, "rows": rows, "limit": limit}
         if source_or_name == "available_players":
-            rows = gold_players.get_available_players()[:limit]
+            lid = league_id or get_default_league_id()
+            rows = gold_players.get_available_players(league_id=lid)[:sample_limit]
         elif source_or_name == "injury":
-            rows = gold_injury.get_injury_report()[:limit]
+            rows = gold_injury.get_injury_report()[:sample_limit]
+        elif source_or_name == "waiver_recommendations":
+            lid = league_id or get_default_league_id()
+            rows = gold_recommendations.get_waiver_recommendations(league_id=lid, limit=sample_limit)
+        elif source_or_name == "mba_coursework_impact":
+            rows = gold_aidb.get_mba_impact()[:limit]
+        elif source_or_name == "ai_platform_product_strategy":
+            rows = gold_aidb.get_product_strategy_impact()[:limit]
         else:
             raise HTTPException(status_code=404, detail=f"Unknown gold table: {source_or_name}")
-        return {"layer": layer, "name": source_or_name, "rows": rows, "limit": limit}
+        return {"layer": layer, "name": source_or_name, "rows": rows, "limit": sample_limit}
     if layer == "model":
         rows = _rows_for_table_id(workbench.table_id("model", source_or_name))[:limit]
         return {"layer": layer, "name": source_or_name, "rows": rows, "limit": limit}
@@ -368,7 +756,7 @@ def admin_sample_table_two_segments(
 @router.get("/tables/{layer}/{source_or_name}/{table}")
 def admin_sample_bronze(
     layer: str, source_or_name: str, table: str
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Sample bronze table: GET /admin/tables/bronze/{source_id}/{table}."""
     if layer != "bronze":
         raise HTTPException(status_code=400, detail="Three-segment path is for bronze only")
@@ -378,7 +766,7 @@ def admin_sample_bronze(
 
 
 @router.get("/transformations")
-def admin_list_transformations() -> Dict[str, Any]:
+def admin_list_transformations() -> dict[str, Any]:
     """List SQL transformation files by layer (from sql_loader)."""
     out = {}
     for layer in medallion_layers():
@@ -388,25 +776,37 @@ def admin_list_transformations() -> Dict[str, Any]:
 
 
 @router.get("/transformations/{layer}/{name}")
-def admin_get_transformation(layer: str, name: str) -> Dict[str, Any]:
+def admin_get_transformation(layer: str, name: str) -> dict[str, Any]:
     """Return SQL content for sql/<layer>/<name>.sql."""
     if layer not in medallion_layers():
         raise HTTPException(status_code=400, detail=f"Unknown layer: {layer}")
     try:
         content = read_sql(layer, name)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"Transformation not found: {layer}/{name}")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Transformation not found: {layer}/{name}") from e
     return {"layer": layer, "name": name, "sql": content}
 
 
 @router.get("/runs")
 def admin_list_runs() -> List[Dict[str, Any]]:
-    """Return persisted run history."""
-    return workbench.list_runs()
+    """Return run history from both persisted workbench runs and local runs."""
+    runs = workbench.list_runs()
+    for r in runs:
+        if "timestamp" not in r:
+            r["timestamp"] = r.get("started_at") or time.time()
+    for r in _RUNS:
+        runs.append({
+            "kind": r["kind"],
+            "league_id": r.get("league_id"),
+            "timestamp": r["timestamp"],
+            "status": "succeeded",
+            "id": f"run_{int(r['timestamp'])}",
+        })
+    return runs
 
 
 @router.get("/league/validate")
-def admin_validate_league(league_id: str) -> Dict[str, Any]:
+def admin_validate_league(league_id: str) -> dict[str, Any]:
     """Validate league ID (same as POST /league/validate). For UI convenience."""
     return gold_league.validate_league(league_id)
 
@@ -589,6 +989,12 @@ def admin_jobs() -> List[Dict[str, Any]]:
     return workbench.list_jobs()
 
 
+@router.get("/jobs/defaults")
+def admin_default_jobs() -> Dict[str, Any]:
+    """Return the built-in default ingest job templates."""
+    return {"jobs": workbench.default_ingest_job_templates()}
+
+
 @router.post("/jobs")
 def admin_create_job(body: JobBody) -> Dict[str, Any]:
     """Create a persisted job definition."""
@@ -664,6 +1070,102 @@ def admin_scheduler_status(now: Optional[float] = None) -> Dict[str, Any]:
 def admin_scheduler_run_due(limit: int = 20, now: Optional[float] = None) -> Dict[str, Any]:
     """Run enabled jobs whose next_run_at is due."""
     return run_due_jobs_once(limit=limit, now=now, trigger="scheduler")
+
+
+@router.get("/scheduler/startup-catchup")
+def admin_scheduler_startup_catchup() -> Dict[str, Any]:
+    """Return startup catch-up status for missed scheduled jobs."""
+    return startup_catchup_status()
+
+
+def run_startup_catchup_once(
+    limit: int = 20,
+    now: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Run jobs that were already due when the API process started."""
+    current = time.time() if now is None else float(now)
+    due_jobs = workbench.list_due_jobs(current)
+    due_summaries = [_job_summary(job) for job in due_jobs]
+    _set_startup_catchup_status(
+        status="running",
+        message=(
+            f"Startup catch-up is running {len(due_jobs)} overdue job(s)."
+            if due_jobs
+            else "Startup catch-up checked; no overdue jobs."
+        ),
+        started_at=current,
+        finished_at=None,
+        due_count=len(due_jobs),
+        executed_count=0,
+        due_jobs=due_summaries,
+        executed_jobs=[],
+        error=None,
+    )
+    if not due_jobs:
+        return _set_startup_catchup_status(
+            status="completed",
+            message="Startup catch-up checked; no overdue jobs.",
+            finished_at=current,
+        )
+
+    try:
+        result = run_due_jobs_once(limit=limit, now=current, trigger="startup_catchup")
+    except Exception as exc:
+        workbench.create_alert(
+            title="Startup catch-up failed",
+            message=str(exc),
+            severity="error",
+        )
+        return _set_startup_catchup_status(
+            status="failed",
+            message=f"Startup catch-up failed: {exc}",
+            finished_at=time.time(),
+            error=str(exc),
+        )
+
+    executed_jobs = [
+        _job_summary(item.get("job") or {})
+        for item in result.get("executed") or []
+    ]
+    failed = [
+        item
+        for item in result.get("executed") or []
+        if ((item.get("run") or {}).get("status") not in {None, "succeeded"})
+    ]
+    status = "completed_with_errors" if failed else "completed"
+    message = f"Startup catch-up ran {result.get('executed_count') or 0} overdue job(s)."
+    if failed:
+        message += f" {len(failed)} job(s) failed; check Alerts for details."
+    if result.get("executed_count"):
+        names = ", ".join(job.get("name") or job.get("id") or "job" for job in executed_jobs)
+        workbench.create_alert(
+            title="Startup catch-up ran overdue jobs",
+            message=f"{message} Jobs: {names}",
+            severity="info",
+        )
+    return _set_startup_catchup_status(
+        status=status,
+        message=message,
+        finished_at=time.time(),
+        due_count=result.get("due_count") or 0,
+        executed_count=result.get("executed_count") or 0,
+        remaining_due_count=result.get("remaining_due_count") or 0,
+        executed_jobs=executed_jobs,
+        result=result,
+        error=None,
+    )
+
+
+def _job_summary(job: Dict[str, Any]) -> Dict[str, Any]:
+    target = job.get("target") or {}
+    return {
+        "id": job.get("id"),
+        "name": job.get("name"),
+        "kind": job.get("kind"),
+        "source_id": target.get("source_id"),
+        "next_run_at": job.get("next_run_at"),
+        "last_status": job.get("last_status"),
+    }
 
 
 def run_due_jobs_once(
@@ -755,6 +1257,49 @@ def _execute_job(job: Dict[str, Any]) -> Dict[str, Any]:
             "table_id": result["table_id"],
             "row_count": result["row_count"],
         }
+    if kind == "adapter_ingest":
+        source_id = str(target.get("source_id") or "")
+        if not source_id:
+            raise HTTPException(status_code=400, detail="source_id target is required")
+        adapter = get_adapter(source_id)
+        if adapter is None:
+            raise HTTPException(status_code=404, detail=f"Adapter not found: {source_id}")
+        params = target.get("params") or {}
+        if not isinstance(params, dict):
+            raise HTTPException(status_code=400, detail="adapter_ingest params must be an object")
+        before = {
+            (src, table): count
+            for src, table, count in bronze_store.list_tables()
+            if src == source_id
+        }
+        adapter.ingest_to_bronze(**params)
+        after = {
+            (src, table): count
+            for src, table, count in bronze_store.list_tables()
+            if src == source_id
+        }
+        row_count = sum(max(0, count - before.get(key, 0)) for key, count in after.items())
+        return {
+            "status": "succeeded",
+            "source_id": source_id,
+            "row_count": row_count,
+            "tables": [
+                workbench.table_id("bronze", table, source_id=src)
+                for (src, table), count in after.items()
+            ],
+        }
+    if kind == "ambient_evaluate":
+        table_id = str(target.get("table_id") or "")
+        if not table_id:
+            raise HTTPException(status_code=400, detail="table_id target is required")
+        try:
+            return _run_ambient_evaluation(
+                table_id,
+                model=target.get("model"),
+                limit=int(target.get("limit") or 100),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
     raise HTTPException(status_code=400, detail=f"Unknown job kind: {kind}")
 
 
@@ -871,7 +1416,6 @@ def admin_ui_index(request: Request):
     """Serve admin UI at GET /admin and GET /admin/."""
     index = _ADMIN_UI_ROOT / "index.html"
     if not index.is_file():
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Admin UI not found")
     response = FileResponse(index, media_type="text/html")
     expected = get_admin_api_key()

@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
+import analytics_foundry.admin_routes as admin_routes
 from analytics_foundry import workbench
 from analytics_foundry.api import app
 from analytics_foundry.bronze import store as bronze_store
@@ -384,6 +385,65 @@ def test_weekly_schedule_rolls_to_next_week(monkeypatch, client):
     job = resp.json()
     assert job["schedule"] == {"type": "weekly", "day_of_week": "monday", "time": "09:00"}
     assert job["next_run_at"] == ts(2026, 1, 12, 9, 0)
+
+
+def test_default_weekly_ingest_jobs_are_seeded_idempotently():
+    result = workbench.ensure_default_ingest_jobs(now=ts(2026, 1, 5, 8, 0))
+
+    assert result["created_count"] == 4
+    jobs = workbench.list_jobs()
+    by_key = {job["default_key"]: job for job in jobs}
+    assert set(by_key) == {
+        "weekly_nfl_sleeper_broad",
+        "weekly_nfl_feed",
+        "weekly_default_league",
+        "weekly_ai_daily_brief",
+    }
+    assert by_key["weekly_nfl_sleeper_broad"]["target"]["source_id"] == "nfl_sleeper"
+    assert by_key["weekly_nfl_feed"]["target"]["source_id"] == "nfl_weekly_feed"
+    assert by_key["weekly_ai_daily_brief"]["target"]["source_id"] == "ai_daily_brief"
+    assert by_key["weekly_default_league"]["target"]["league_id"]
+    assert all(job["schedule"]["type"] == "weekly" for job in jobs)
+
+    second = workbench.ensure_default_ingest_jobs(now=ts(2026, 1, 5, 8, 5))
+
+    assert second["created_count"] == 0
+    assert len(workbench.list_jobs()) == 4
+
+
+def test_startup_catchup_runs_overdue_jobs_and_reports_status(client):
+    class DemoAdapter:
+        def ingest_to_bronze(self, **kwargs):
+            bronze_store.append_raw("demo_adapter", "items", [{"id": "1"}])
+
+    job = client.post(
+        "/admin/jobs",
+        json={
+            "name": "Overdue adapter sync",
+            "kind": "adapter_ingest",
+            "target": {"source_id": "demo_adapter", "params": {}},
+            "schedule": {"type": "hourly"},
+            "next_run_at": 100.0,
+        },
+    ).json()
+
+    with patch("analytics_foundry.admin_routes.get_adapter", return_value=DemoAdapter()):
+        status = admin_routes.run_startup_catchup_once(now=100)
+
+    assert status["status"] == "completed"
+    assert status["executed_count"] == 1
+    assert status["executed_jobs"][0]["id"] == job["id"]
+    assert bronze_store.get_raw("demo_adapter", "items") == [{"id": "1"}]
+    runs = workbench.list_runs()
+    assert runs[0]["details"]["trigger"] == "startup_catchup"
+    assert runs[0]["status"] == "succeeded"
+    alerts = workbench.list_alerts("open")
+    assert alerts[0]["severity"] == "info"
+    assert "Startup catch-up ran" in alerts[0]["title"]
+
+    api_status = client.get("/admin/scheduler/startup-catchup")
+    assert api_status.status_code == 200
+    assert api_status.json()["executed_count"] == 1
 
 
 def test_cron_schedule_sets_next_run(monkeypatch, client):
@@ -810,11 +870,13 @@ def test_runtime_diagnostics_reports_storage_adapter_scheduler_and_metadata():
     assert data["status"] == "ok"
     assert data["storage"]["writable"] is True
     assert data["metadata"]["collection_count"] == 9
-    assert data["metadata"]["total_records"] == 0
-    assert data["adapters"]["adapters"][0]["source_id"] == "nfl_sleeper"
-    assert data["adapters"]["adapters"][0]["registered"] is True
+    assert data["metadata"]["total_records"] == 4
+    adapter_status = {adapter["source_id"]: adapter for adapter in data["adapters"]["adapters"]}
+    assert adapter_status["nfl_sleeper"]["registered"] is True
+    assert adapter_status["nfl_weekly_feed"]["registered"] is True
+    assert adapter_status["ai_daily_brief"]["registered"] is True
     assert data["scheduler"]["enabled"] is True
-    assert data["scheduler"]["job_count"] == 0
+    assert data["scheduler"]["job_count"] == 4
     assert data["activity"]["open_alert_count"] == 0
 
 
