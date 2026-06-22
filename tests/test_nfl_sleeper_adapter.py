@@ -29,6 +29,19 @@ def test_broad_ingest_lands_in_bronze():
     assert any(r.get("display_name") == "Player One" for r in records)
 
 
+def test_broad_ingest_refresh_replaces_players():
+    """Repeated broad ingest replaces the players snapshot (no unbounded growth)."""
+    first = {"a": {"display_name": "A", "position": "WR", "team": "KC"}}
+    second = {"b": {"display_name": "B", "position": "QB", "team": "BUF"}}
+    adapter = NFLSleeperAdapter(fetch_players=lambda: first)
+    adapter.ingest_to_bronze()
+    adapter._fetch_players = lambda: second
+    adapter.ingest_to_bronze()
+    records = bronze_store.get_raw("nfl_sleeper", "players")
+    assert len(records) == 1
+    assert records[0]["player_id"] == "b"
+
+
 def test_league_scoped_ingest_lands_in_bronze():
     """League-scoped ingest (league_id=...) writes league, rosters, matchups to bronze."""
     fixture_league = {"name": "My League", "status": "pre_draft"}
@@ -50,6 +63,28 @@ def test_league_scoped_ingest_lands_in_bronze():
     matchup_records = bronze_store.get_raw("nfl_sleeper", "matchups")
     assert len(matchup_records) == 2
     assert all(m["league_id"] == "league_123" and m["week"] == 1 for m in matchup_records)
+
+
+def test_league_scoped_refresh_replaces_same_league_rows():
+    """Second ingest for the same league replaces prior league/roster/matchup rows for that id."""
+    adapter = NFLSleeperAdapter(
+        fetch_league=lambda lid: {"name": "V1"} if lid == "L1" else None,
+        fetch_rosters=lambda lid: [{"roster_id": 1}] if lid == "L1" else [],
+        fetch_matchups=lambda lid, week: [{"matchup_id": 1}] if lid == "L1" else [],
+    )
+    adapter.ingest_to_bronze(league_id="L1")
+    adapter2 = NFLSleeperAdapter(
+        fetch_league=lambda lid: {"name": "V2"} if lid == "L1" else None,
+        fetch_rosters=lambda lid: [{"roster_id": 2}, {"roster_id": 3}] if lid == "L1" else [],
+        fetch_matchups=lambda lid, week: [{"matchup_id": 9}] if lid == "L1" else [],
+    )
+    adapter2.ingest_to_bronze(league_id="L1")
+    leagues = bronze_store.get_raw("nfl_sleeper", "league")
+    assert len(leagues) == 1
+    assert leagues[0]["name"] == "V2"
+    rosters = bronze_store.get_raw("nfl_sleeper", "rosters")
+    assert len(rosters) == 2
+    assert {r["roster_id"] for r in rosters} == {2, 3}
 
 
 def test_nfl_sleeper_implements_source_adapter():

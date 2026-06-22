@@ -22,6 +22,7 @@
 | **2.2** Second adapter to prove pluggability | `MockFixtureAdapter` and tests pass. |
 | **2.3** SQL artifacts | `sql/`, `sql_loader.py`, and SQL artifact tests pass. |
 | **2.4** Recommendation logic implementation | Waiver recommendation unit and endpoint tests pass. |
+| **Ops / MVP+** | Implemented: `/health`, `/ready`, optional `/metrics`, startup validation, structured logging, bronze refresh ingest, admin pipeline/logs/lineage/quality/leagues, `DEPLOYMENT.md`, ruff/mypy, pytest coverage ≥80%; extended pytest suite. |
 | **3.1** Workbench control-plane foundation: persisted jobs/runs, table profiles, lineage, quality rules/results, alerts, storage, and low-code model previews | `tests/test_workbench_control_plane.py` passes; full suite passes with 79 tests. |
 | **3.2** Admin UI reframed as low-code workbench | `/admin` exposes Ingest, Tables, Models, Quality, Jobs, Alerts, Storage, and SQL tabs; legacy admin route tests still pass. |
 | **3.3** UI-driven source onboarding for files and generic APIs | `/admin/sources/*` endpoints support preview + ingest for CSV/TSV/JSON/JSONL files and public JSON APIs; source-to-bronze lineage tested; full suite passes with 82 tests. |

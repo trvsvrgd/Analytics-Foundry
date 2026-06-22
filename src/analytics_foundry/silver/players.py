@@ -1,13 +1,23 @@
 """Silver: cleaned, conformed players. Canonical schema; dedup by player_id (latest wins)."""
 
-from typing import Any, Dict, List
+from typing import Any
 
 from analytics_foundry.bronze import store as bronze_store
 
 NFL_SLEEPER = "nfl_sleeper"
 
 # Canonical silver schema: player_id, name, position, team, status, injury_status, age, trending, updated_at
-SILVER_PLAYER_KEYS = ("player_id", "name", "position", "team", "status", "injury_status", "age", "trending", "updated_at")
+SILVER_PLAYER_KEYS = (
+    "player_id",
+    "name",
+    "position",
+    "team",
+    "status",
+    "injury_status",
+    "age",
+    "trending",
+    "updated_at",
+)
 
 
 def _coerce_int(val: Any) -> int | None:
@@ -32,7 +42,7 @@ def _coerce_float(val: Any) -> float | None:
         return None
 
 
-def _to_silver_player(rec: Dict[str, Any]) -> Dict[str, Any]:
+def _to_silver_player(rec: dict[str, Any]) -> dict[str, Any]:
     """Transform raw bronze record to canonical silver player schema."""
     pid = rec.get("player_id") or rec.get("id")
     if pid is None:
@@ -50,10 +60,10 @@ def _to_silver_player(rec: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_players() -> List[Dict[str, Any]]:
+def get_players() -> list[dict[str, Any]]:
     """Return silver players: cleaned, deduplicated by player_id (latest record wins)."""
     raw = bronze_store.get_raw(NFL_SLEEPER, "players")
-    by_id: Dict[str, Dict[str, Any]] = {}
+    by_id: dict[str, dict[str, Any]] = {}
     for rec in raw:
         silver = _to_silver_player(rec)
         if not silver:

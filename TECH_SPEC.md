@@ -23,6 +23,7 @@ NFL/Sleeper is the first domain adapter; the same patterns extend to other perso
 - **Lineage and observability** - Tables expose schema, row count, freshness, storage path, upstream assets, downstream dependents, run history, quality results, and alerts.
 - **Sleeper-stream-scribe API** - Endpoints and response shapes below implemented and stable.
 - **Recommendation surface** - Waiver/add and manager-brief data-product endpoints implemented and tested.
+- **System Operations** - Health check (`/health`), readiness check (`/ready`), and Prometheus telemetry (`/metrics`) endpoints.
 
 ---
 
@@ -51,6 +52,9 @@ Implement exactly so the existing frontend works without changes.
 | GET | `/injury` | Injury report. Optional query: `league_id`. Response: JSON array of `{ "player_id": string, "status": string, "updated_at"?: string }`. |
 | GET | `/recommendations/waiver` | Waiver/add recommendations. Optional query: `league_id`, `limit`. Response: `{ "recommendations": [...], "league_id": "..." }`. |
 | GET | `/recommendations/manager-brief` | Compact data product for fantasy-manager apps. Optional query: `league_id`, `limit`. Response: `{ "league_id": "...", "generated_at": "...", "summary": {...}, "priority_actions": [...], "models": {...} }`. |
+| GET | `/health` | Liveness check returning `{"status": "ok"}`. |
+| GET | `/ready` | Readiness check (200 when adapter registered, 503 otherwise). |
+| GET | `/metrics` | Prometheus metrics text when telemetry is enabled. |
 
 **Player object** for `/players/available` includes at least `id`, `player_id`, `name`, `position`, `team`, `status`, `age`, and `trending`.
 
@@ -175,6 +179,7 @@ Admin routes are unauthenticated by default for local/dev use. When `FOUNDRY_ADM
 | Ambient evaluation | POST `/admin/ambient/evaluate` body `{ "table_id": "...", "model"?: "...", "limit"?: 100 }` |
 | Ambient review | GET `/admin/ambient/review`, POST `/admin/ambient/review/{candidate_id}/approve`, POST `/admin/ambient/review/{candidate_id}/ignore` |
 | Ambient Android bridge | POST `/admin/ambient/messages/ingest` |
+| Tracked leagues registry | GET/POST `/admin/leagues`, DELETE `/admin/leagues/{league_id}` |
 | Runs | GET `/admin/runs` |
 | Storage | GET `/admin/storage`, POST `/admin/storage/retention/preview`, POST `/admin/storage/cleanup` |
 | Diagnostics | GET `/admin/diagnostics` with storage, metadata, adapter, scheduler, and activity health |
@@ -215,13 +220,15 @@ Admin routes are unauthenticated by default for local/dev use. When `FOUNDRY_ADM
 - [x] Workbench metadata export/import round-trips sources, jobs, quality rules, models, alerts, alert targets, and optional history across local data roots.
 - [x] Runtime diagnostics report storage writability, metadata file validity, adapter registration, scheduler state, recent failures, and open alerts.
 - [x] Ambient confidence engine integrates Gmail, Google Calendar, Android selected-thread bronze ingest, local Ollama evaluation, high/medium/low routing, and approve/edit/ignore human review.
+- [x] Liveness (`/health`), readiness (`/ready`), and metrics (`/metrics`) endpoints are implemented, conformed, and tested.
+- [x] Tracked league registry supports persistence in `meta/leagues.json` and basic CRUD operations.
 
 ---
 
 ## Current State (Audit)
 
 - **Repository:** Single-service FastAPI app with static Admin UI and pytest suite.
-- **Implemented:** NFL/Sleeper adapter, bronze persistence, silver/gold transforms, sleeper-stream-scribe API, recommendation endpoint, table browsing, schema/freshness/storage metadata, source onboarding for files/API JSON, Gmail/Calendar/Android ambient adapters, local Ollama confidence routing, ambient human review, lineage, quality rules/results with failed-row samples, schema-aware quality authoring, alerts, webhook alert delivery, persisted jobs/runs, local due-job scheduler with cron-style scheduling, runtime diagnostics, local storage retention controls, metadata import/export bundles, low-code model previews, and materialized model outputs.
+- **Implemented:** NFL/Sleeper adapter, bronze persistence, silver/gold transforms, sleeper-stream-scribe API, recommendation endpoints, health check, readiness check, Prometheus metrics, tracked leagues CRUD, log buffer stream, lineage view, quality rules/results with failed-row samples, schema-aware quality rule authoring, file/API onboarding, Gmail/Calendar/Android ambient adapters, local Ollama evaluation, high/medium/low routing, review queue, jobs/runs, local scheduler with cron-style scheduling, diagnostics, retention cleanup, metadata export/import, low-code model workspace, and materialized model outputs.
 - **Runtime controls:** Due jobs run in the API process by default. Startup ensures default weekly ingest jobs exist and runs overdue work before the normal scheduler loop. Set `FOUNDRY_SCHEDULER_ENABLED=0` to disable the loop, or `FOUNDRY_SCHEDULER_INTERVAL_SECONDS` to change the polling interval.
 - **Technical debt:** Source onboarding is intentionally simple; metadata bundles do not include bronze/model data files; alert delivery is webhook-based and does not include SMTP/email account setup yet.
 - **Next product risk:** Avoid drifting back toward SQL-first/developer-first workflows. New features should keep tables, models, rules, jobs, alerts, lineage, and storage as the primary objects.

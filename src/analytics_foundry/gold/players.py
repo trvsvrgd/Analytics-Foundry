@@ -1,12 +1,12 @@
 """Gold: available players for API. Reads from silver; shapes per TECH_SPEC player object."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from analytics_foundry.silver import players as silver_players
 from analytics_foundry.silver import rosters as silver_rosters
 
 
-def _to_player_object(rec: Dict[str, Any]) -> Dict[str, Any]:
+def _to_player_object(rec: dict[str, Any]) -> dict[str, Any]:
     """Shape silver record to API player object: id, name, position, team, status, age, trending."""
     pid = rec.get("player_id")
     return {
@@ -21,7 +21,7 @@ def _to_player_object(rec: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def get_available_players(league_id: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_available_players(league_id: str | None = None) -> list[dict[str, Any]]:
     """Return available (unrostered) players. If league_id given, exclude players on rosters in that league."""
     players_list = silver_players.get_players()
     if league_id:

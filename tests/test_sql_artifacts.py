@@ -1,6 +1,5 @@
 """Phase 2.3: SQL artifacts exist; medallion flow bronze → silver → gold preserved."""
 
-import pytest
 
 from analytics_foundry.sql_loader import get_sql_root, list_sql_files, medallion_layers, read_sql
 
